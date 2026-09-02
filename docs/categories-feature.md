@@ -18,10 +18,20 @@ Admin CRUD for the audience segments a shopper browses by — شبابي / نس�
 /admin/categories     list, create, edit, delete — all on one page
 ```
 
-There is no `/new` or `/[id]/edit` route. A category is six fields, so a
-dialog holds all of it without scrolling, and staying on the list means the
-admin can add three segments in a row without three navigations. Products
-will need real routes; this does not.
+There is no `/new` or `/[id]/edit` route. A category is six fields, and
+staying on the list means the admin can add three segments in a row without
+three navigations. Products need real routes for the reason this does not —
+see [`products-feature.md`](./products-feature.md).
+
+> **The dialog scrolls; it used to grow.** Six fields fit on a laptop and do
+> not fit on a 13" screen with the browser zoomed, and a `position: fixed`
+> popup centred on the viewport cannot be scrolled to reach the submit button
+> that has slid off the bottom of it. The popup is now capped at `80svh` and
+> laid out as three grid rows — header, `DialogBody`, footer — so «حفظ
+> التعديلات» stays on screen and the fields scroll between them. The
+> mechanism, and why `svh` rather than `vh`, is documented on `DialogBody` in
+> [`dialog.tsx`](../src/components/ui/dialog.tsx); the product form uses the
+> same three-row shape.
 
 ---
 
@@ -73,7 +83,10 @@ model Product {
 `name` is the Arabic label a shopper reads; `slug` is the Latin URL segment
 in `/shop/youth`. The slug is **typed by the admin, not generated** — names
 here are Arabic, and slugifying "شبابي" gives either an empty string or a
-transliteration ("shbaby") that nobody would recognise in an address bar.
+transliteration ("shbaby") that nobody would recognise in an address bar. The
+rule itself lives in [`utils/slug.ts`](../src/utils/slug.ts), because a
+product slug answers to the same one and two copies of the regex would be two
+chances for the two forms to disagree.
 
 **`slug` is effectively immutable in practice.** Nothing stops an admin
 changing it, but the form says so under the field: every link already shared
@@ -192,6 +205,14 @@ the action passes it through.
 the *constraint* name (`Category_slug_key`), not the column, so the field is
 recovered by substring — `slug` checked before `name`, since both constraint
 names contain the table name and only the distinguishing half is trustworthy.
+
+**There are two list functions, on purpose.** `listCategories()` carries a
+per-row product count for the table; `listCategoryOptions()` carries four
+columns for a `<select>`. The second exists because its caller is the
+**product form**, a Client Component, and a count nobody renders would be
+serialised into the page for nothing. It includes inactive segments and lets
+the form label them: hiding them would make a product's own category vanish
+out of its select the moment someone retires it.
 
 **The delete guard counts first, then still catches `P2003`.** The count is
 what produces a useful message; the catch is the backstop for the race where
@@ -341,6 +362,7 @@ guard doing its job.
 | `src/services/category.service.ts` | Every rule about categories |
 | `src/lib/uploads.ts` | Image storage — `server-only` |
 | `src/constants/uploads.ts` | The limits, shared with the client |
+| `src/utils/slug.ts` | The URL-segment rule, shared with products |
 | `scripts/seed-categories.mts` | The three founding segments |
 
 ### Why the form is one component and one action

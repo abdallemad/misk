@@ -18,7 +18,7 @@
 - [`admin-dashboard.md`](./admin-dashboard.md) — the `/admin` console and its reusable components
 - [`admin-access-control.md`](./admin-access-control.md) — how `/admin` is locked down
 - [`categories-feature.md`](./categories-feature.md) — admin CRUD for Youth / Women / Men
-- [`products-feature.md`](./products-feature.md) — admin CRUD for the sellable entity: gallery upload, ingredients editor, and the inline variant-collection editor (size+style rows vs. weight rows, depending on product type)
+- [`products-feature.md`](./products-feature.md) — **built** — admin CRUD for the sellable entity: gallery upload and the inline variant-collection editor (size+style rows vs. weight rows, depending on product type). The ingredients editor is deliberately not in it yet; that document says why
 - [`orders-feature.md`](./orders-feature.md) — admin read-first: order status and fulfilment
 - [`customers-feature.md`](./customers-feature.md) — admin read-first: accounts mirrored from Clerk
 - [`database-seeding.md`](./database-seeding.md) — mock data for development
@@ -229,7 +229,7 @@ panel `CatalogFilters` (category / product type / size), the product detail
 building blocks (`ProductGallery`, `ProductInfo`, `IngredientsList`), and the
 `VariantSelector` — the one component that branches by `product.type`:
 
-- `ALCOHOL` → renders **Size** (30ml / 50ml / 100ml) × **Bottle Style**
+- `ALCOHOL_BASED` → renders **Size** (30ml / 50ml / 100ml) × **Bottle Style**
   (Luxury / Regular)
 - `RAW_OIL` → renders **Weight** (5g / 8g / 12g) only, no bottle style
 
@@ -275,23 +275,35 @@ the caller owns the mutation. That keeps the same component usable in a dialog
 and on a full page.
 
 `product-form.tsx` is the one form with branching fields: selecting product
-type (`ALCOHOL` vs `RAW_OIL`) swaps the variant rows the inline editor renders
-— size + bottle style rows, or weight rows — before the product is even
-saved. See [`products-feature.md`](./products-feature.md).
+type (`ALCOHOL_BASED` vs `RAW_OIL`) swaps the variant rows the inline editor
+renders — size + bottle style rows, or weight rows — before the product is
+even saved. See [`products-feature.md`](./products-feature.md).
+
+> **Both built forms live under `components/admin/<feature>/`, not here.**
+> They are not presentational: each owns a `useActionState` bound to its own
+> Server Action, and neither is reused outside its console section. Moving
+> them into a shared `forms/` folder would separate a form from the action it
+> is the client half of, to no one's benefit. This folder is the right home
+> for a form two surfaces render — the checkout form, when it exists.
 
 State is managed by **react-hook-form**, validated by the entity's Zod schema
 through `standardSchemaResolver`, so the form and the Server Action enforce
 identical rules.
 
-> **Not yet installed either.** `react-hook-form` is not a dependency. The
-> category form is uncontrolled — plain `defaultValue` inputs read through
-> the browser's own `FormData`, with `useActionState` for the pending and
-> error states — and its Zod schema runs only on the server, which keeps the
-> "identical rules" property above without a second copy of them in the
-> browser. The trade is a round trip to see a message. A form with dependent
-> fields or live cross-field validation (the product form, with its
-> type-dependent variant rows) is the one that should pull it in. See
-> [`categories-feature.md`](./categories-feature.md).
+> **Not yet installed either, and the product form did not change that.**
+> `react-hook-form` is not a dependency. Both built forms are uncontrolled —
+> plain `defaultValue` inputs read through the browser's own `FormData`, with
+> `useActionState` for the pending and error states — and their Zod schemas
+> run only on the server, which keeps the "identical rules" property above
+> without a second copy of them in the browser. The trade is a round trip to
+> see a message.
+>
+> The product form was predicted to be the one that pulled it in. It has two
+> pieces of `useState` and nothing else: the dependency turned out to be on
+> the form's **structure** (`productType` decides which selects exist) rather
+> than on any field's *value*, and structure is cheap to hold by hand. The
+> prediction comes true the day a form needs live cross-field validation. See
+> [`products-feature.md`](./products-feature.md).
 
 ---
 
@@ -320,7 +332,8 @@ admin/
 ├── categories/   # built — table + form dialog + delete dialog
 │                 #   categories-feature.md
 │
-├── products/     # variant-collection editor, gallery uploader
+├── products/     # built — table + form page + gallery + variant editor
+│                 #   products-feature.md
 │
 └── shared/       # page container, page header, section card,
                   # data table wrapper, search input, toolbar,
@@ -348,7 +361,9 @@ Server Actions.
 actions/
 │
 ├── auth/
-├── product/       # includes createVariant / updateVariant
+├── product/       # built — save-product.ts, delete-product.ts. One save
+│                  #   action for the whole form, not createVariant /
+│                  #   updateVariant — products-feature.md says why
 ├── category/      # built — save-category.ts, delete-category.ts
 ├── search/
 ├── cart/
@@ -376,7 +391,7 @@ services/
 │
 ├── auth.service.ts        # Clerk -> User sync, role resolution — auth-callback.md
 ├── admin.service.ts       # read-only counts for the /admin overview
-├── product.service.ts     # variant pricing, stock rules, ingredients
+├── product.service.ts     # built — products-feature.md
 ├── category.service.ts    # built — categories-feature.md
 ├── search.service.ts
 ├── cart.service.ts
@@ -391,10 +406,12 @@ business rule about what a paid order means (marking it `PAID`, decrementing
 variant stock) lives in the service layer.
 
 `product.service.ts` owns the rule that keeps the catalog consistent: an
-`ALCOHOL` product's variants must carry `size` + `bottleStyle` and no
-`weight`; a `RAW_OIL` product's variants must carry `weight` and no
-`size`/`bottleStyle`. This is enforced in the service, not just the form, so
-it can never be bypassed by a direct Server Action call.
+`ALCOHOL_BASED` product's variants must carry `bottleSize` + `bottleStyle` and
+no `oilWeight`; a `RAW_OIL` product's variants must carry `oilWeight` and no
+`bottleSize`/`bottleStyle`. This is enforced in the service, not just the
+form, so it can never be bypassed by a direct Server Action call. See
+[`products-feature.md`](./products-feature.md) for the third place it is also
+enforced — the database — and why that one is not enough on its own.
 
 ### Responsibilities
 
@@ -451,16 +468,19 @@ Zod validation schemas.
 ```text
 schemas/
 │
-└── category.schema.ts   # built — rules, FormData adapter, form-state type
+├── category.schema.ts   # built — rules, FormData adapter, form-state type
+└── product.schema.ts    # built — the same, plus the keyed variant rows
 ```
 
 Examples:
 
 - Login Schema
 - Product Schema (base fields: name, description, category, type, ingredients)
-- Variant Schema — a **discriminated union** on `product.type`:
-  `{ size, bottleStyle, price, stock }` for `ALCOHOL`, or
-  `{ weight, price, stock }` for `RAW_OIL`
+- Variant Schema — **not** a discriminated union, as it turned out: the
+  discriminator lives on the *product*, not the row, so `product.schema.ts`
+  validates a permissive row and applies the shape rule in a `superRefine`
+  that can see `productType`. See
+  [`products-feature.md`](./products-feature.md)
 - Cart Item Schema
 - Checkout Schema
 
@@ -515,11 +535,12 @@ Core models (see [`erd.md`](./erd.md) for the full diagram):
   not an enum, and the admin CRUD for it is
   [`categories-feature.md`](./categories-feature.md). Carries `slug` (the
   `/shop/[category]` segment), `imageUrl`, `isActive` and `position`.
-- `Product` — name, slug, description, ingredients, images[], type
-  (`ALCOHOL` | `RAW_OIL`), categoryId, isActive
-- `ProductVariant` — productId, size (`ML_30` | `ML_50` | `ML_100`, nullable),
-  bottleStyle (`LUXURY` | `REGULAR`, nullable), weight (`G_5` | `G_8` | `G_12`,
-  nullable), price, stock
+- `Product` — name, slug, description, ingredients, images[], productType
+  (`ALCOHOL_BASED` | `RAW_OIL`), categoryId, isActive
+- `ProductVariant` — productId, bottleSize (`ML_30` | `ML_50` | `ML_100`,
+  nullable), bottleStyle (`LUXURY` | `REGULAR`, nullable), oilWeight (`G_5` |
+  `G_8` | `G_12`, nullable), oilGrade, sku, price (`Decimal(10,2)`), stock,
+  isActive
 - `Cart` / `CartItem` — cartId, variantId, quantity
 - `Order` / `OrderItem` — order-time snapshot of product name, variant
   label, and price, so a later price change never rewrites history
@@ -560,6 +581,11 @@ Examples:
 
 Utilities should not depend on React or the database.
 
+Built so far: `format.ts` (prices, dates, the variant label) and `slug.ts`
+(the URL-segment rule shared by the category and product forms). There is no
+`slugify()` in either, and [`categories-feature.md`](./categories-feature.md)
+explains why: the names are Arabic, so the admin types the slug.
+
 ---
 
 # constants/
@@ -571,8 +597,11 @@ constants/
 │
 ├── routes.ts          # every path, plus `safeRedirect` / `authCallbackUrl`
 ├── admin-nav.ts       # the /admin sidebar as data — admin-dashboard.md
-├── uploads.ts         # accepted image types + size cap, shared with the
-│                      #   client because lib/uploads.ts is server-only
+├── uploads.ts         # accepted image types + size cap + gallery cap,
+│                      #   shared with the client because lib/uploads.ts
+│                      #   is server-only
+├── catalog.ts         # the four catalog enums, in order, with their
+│                      #   Arabic — products-feature.md
 └── design-system.ts   # tones, order status, stock, category + type accents
 ```
 
@@ -584,8 +613,8 @@ about what a route is called.
 Also belongs here:
 
 - Query Keys
-- Product Types (`ALCOHOL`, `RAW_OIL`)
-- Bottle Sizes / Bottle Styles / Oil Weights
+- Product Types (`ALCOHOL_BASED`, `RAW_OIL`) — built, in `catalog.ts`
+- Bottle Sizes / Bottle Styles / Oil Weights — built, in `catalog.ts`
 - Roles
 - Permissions
 - Pagination Limits

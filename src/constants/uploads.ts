@@ -19,6 +19,16 @@ export const MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
 export const MAX_IMAGE_MB = Math.round(MAX_IMAGE_BYTES / (1024 * 1024))
 
+/**
+ * How many photos one perfume may carry.
+ *
+ * A ceiling rather than a guess: the storefront gallery is a carousel, and
+ * past roughly this many the shopper stops swiping and the admin stops
+ * curating. It is also the bound on how many files one Server Action call
+ * has to buffer in memory before any of them reach disk.
+ */
+export const MAX_GALLERY_IMAGES = 8
+
 export const ACCEPTED_IMAGE_MIME = [
   "image/jpeg",
   "image/png",

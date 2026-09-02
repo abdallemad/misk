@@ -10,6 +10,8 @@
  * text, so `bg-${tone}-soft` would compile to nothing.
  */
 
+import type { ProductType } from "@prisma/client"
+
 /* -------------------------------------------------------------------------
  * Tones
  * ---------------------------------------------------------------------- */
@@ -208,13 +210,20 @@ export function categoryAccent(slug: string): CategoryAccent {
  * in a mixed grid.
  * ---------------------------------------------------------------------- */
 
-export type ProductType = "ALCOHOL" | "RAW_OIL"
+/**
+ * Re-exported from Prisma rather than re-declared, because this used to be a
+ * hand-written `"ALCOHOL" | "RAW_OIL"` and the schema calls the first member
+ * `ALCOHOL_BASED` — two vocabularies for one concept, which is exactly the
+ * drift this file exists to prevent. `import type` keeps the query engine out
+ * of the client bundle; the values themselves live in `constants/catalog.ts`.
+ */
+export type { ProductType }
 
 export const PRODUCT_TYPE_ACCENT: Record<
   ProductType,
   { label: string; short: string; unit: string; text: string; bg: string }
 > = {
-  ALCOHOL: {
+  ALCOHOL_BASED: {
     label: "عطر كحولي",
     short: "EDP",
     unit: "ml",

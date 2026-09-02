@@ -7,6 +7,7 @@ import { saveCategoryAction } from "@/actions/category/save-category"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -101,7 +102,10 @@ export function CategoryFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* The popup is capped at 80% of the viewport and laid out as three
+          rows — header, scrolling body, footer — so «حفظ التعديلات» stays on
+          screen no matter how tall the form gets. See `DialogBody`. */}
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[80svh] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isEdit ? "تعديل الفئة" : "فئة جديدة"}</DialogTitle>
           <DialogDescription>
@@ -116,124 +120,126 @@ export function CategoryFormDialog({
               action to create rather than update. */}
           <input type="hidden" name="id" value={category?.id ?? ""} />
 
-          <FieldGroup className="gap-4">
-            <Field>
-              <FieldLabel htmlFor="category-name">الاسم</FieldLabel>
-              <Input
-                id="category-name"
-                name="name"
-                defaultValue={category?.name ?? ""}
-                maxLength={NAME_MAX}
-                placeholder="شبابي"
-                autoComplete="off"
-                aria-invalid={Boolean(fieldErrors.name)}
-                required
-              />
-              <FieldDescription>الاسم كما يظهر للزائر.</FieldDescription>
-              {fieldErrors.name ? (
-                <FieldError>{fieldErrors.name}</FieldError>
-              ) : null}
-            </Field>
+          <DialogBody>
+            <FieldGroup className="gap-4">
+              <Field>
+                <FieldLabel htmlFor="category-name">الاسم</FieldLabel>
+                <Input
+                  id="category-name"
+                  name="name"
+                  defaultValue={category?.name ?? ""}
+                  maxLength={NAME_MAX}
+                  placeholder="شبابي"
+                  autoComplete="off"
+                  aria-invalid={Boolean(fieldErrors.name)}
+                  required
+                />
+                <FieldDescription>الاسم كما يظهر للزائر.</FieldDescription>
+                {fieldErrors.name ? (
+                  <FieldError>{fieldErrors.name}</FieldError>
+                ) : null}
+              </Field>
 
-            <Field>
-              <FieldLabel htmlFor="category-slug">المعرّف (الرابط)</FieldLabel>
-              <Input
-                id="category-slug"
-                name="slug"
-                defaultValue={category?.slug ?? ""}
-                maxLength={SLUG_MAX}
-                placeholder="youth"
-                autoComplete="off"
-                spellCheck={false}
-                dir="ltr"
-                className="font-mono text-start"
-                aria-invalid={Boolean(fieldErrors.slug)}
-                required
-              />
-              <FieldDescription>
-                يظهر في رابط الصفحة:{" "}
-                <code className="font-mono text-xs" dir="ltr">
-                  /shop/{category?.slug || "youth"}
-                </code>
-                {isEdit ? " — تغييره يكسر الروابط المنشورة." : null}
-              </FieldDescription>
-              {fieldErrors.slug ? (
-                <FieldError>{fieldErrors.slug}</FieldError>
-              ) : null}
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="category-description">الوصف</FieldLabel>
-              <Textarea
-                id="category-description"
-                name="description"
-                defaultValue={category?.description ?? ""}
-                maxLength={DESCRIPTION_MAX}
-                rows={2}
-                placeholder="برغموت وحمضيات، نفَس منعش"
-                aria-invalid={Boolean(fieldErrors.description)}
-              />
-              <FieldDescription>
-                سطر واحد يصف عائلة الروائح. اختياري.
-              </FieldDescription>
-              {fieldErrors.description ? (
-                <FieldError>{fieldErrors.description}</FieldError>
-              ) : null}
-            </Field>
-
-            <CategoryImageField
-              currentImageUrl={category?.imageUrl ?? null}
-              error={fieldErrors.image}
-              disabled={pending}
-            />
-
-            <Field>
-              <FieldLabel htmlFor="category-position">الترتيب</FieldLabel>
-              <Input
-                id="category-position"
-                name="position"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                max={999}
-                step={1}
-                defaultValue={category?.position ?? ""}
-                placeholder="تلقائي"
-                dir="ltr"
-                className="text-start"
-                aria-invalid={Boolean(fieldErrors.position)}
-              />
-              <FieldDescription>
-                ترتيب الظهور في قائمة المتجر — الأصغر أولًا. اتركه فارغًا
-                ليُضاف في النهاية.
-              </FieldDescription>
-              {fieldErrors.position ? (
-                <FieldError>{fieldErrors.position}</FieldError>
-              ) : null}
-            </Field>
-
-            <Field orientation="horizontal">
-              <FieldContent>
-                <FieldTitle>
-                  <FieldLabel htmlFor="category-active">
-                    معروضة في المتجر
-                  </FieldLabel>
-                </FieldTitle>
+              <Field>
+                <FieldLabel htmlFor="category-slug">المعرّف (الرابط)</FieldLabel>
+                <Input
+                  id="category-slug"
+                  name="slug"
+                  defaultValue={category?.slug ?? ""}
+                  maxLength={SLUG_MAX}
+                  placeholder="youth"
+                  autoComplete="off"
+                  spellCheck={false}
+                  dir="ltr"
+                  className="font-mono text-start"
+                  aria-invalid={Boolean(fieldErrors.slug)}
+                  required
+                />
                 <FieldDescription>
-                  أوقفها لإخفاء الفئة عن الزوار دون حذفها.
+                  يظهر في رابط الصفحة:{" "}
+                  <code className="font-mono text-xs" dir="ltr">
+                    /shop/{category?.slug || "youth"}
+                  </code>
+                  {isEdit ? " — تغييره يكسر الروابط المنشورة." : null}
                 </FieldDescription>
-              </FieldContent>
-              {/* Base UI's Switch renders its own hidden checkbox input, so
-                  `name` is all it needs to reach `FormData` — and it submits
-                  "on" when checked and nothing when not, which is exactly the
-                  presence check the schema does. */}
-              <Switch
-                id="category-active"
-                name="isActive"
-                defaultChecked={category?.isActive ?? true}
+                {fieldErrors.slug ? (
+                  <FieldError>{fieldErrors.slug}</FieldError>
+                ) : null}
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="category-description">الوصف</FieldLabel>
+                <Textarea
+                  id="category-description"
+                  name="description"
+                  defaultValue={category?.description ?? ""}
+                  maxLength={DESCRIPTION_MAX}
+                  rows={2}
+                  placeholder="برغموت وحمضيات، نفَس منعش"
+                  aria-invalid={Boolean(fieldErrors.description)}
+                />
+                <FieldDescription>
+                  سطر واحد يصف عائلة الروائح. اختياري.
+                </FieldDescription>
+                {fieldErrors.description ? (
+                  <FieldError>{fieldErrors.description}</FieldError>
+                ) : null}
+              </Field>
+
+              <CategoryImageField
+                currentImageUrl={category?.imageUrl ?? null}
+                error={fieldErrors.image}
+                disabled={pending}
               />
-            </Field>
-          </FieldGroup>
+
+              <Field>
+                <FieldLabel htmlFor="category-position">الترتيب</FieldLabel>
+                <Input
+                  id="category-position"
+                  name="position"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={999}
+                  step={1}
+                  defaultValue={category?.position ?? ""}
+                  placeholder="تلقائي"
+                  dir="ltr"
+                  className="text-start"
+                  aria-invalid={Boolean(fieldErrors.position)}
+                />
+                <FieldDescription>
+                  ترتيب الظهور في قائمة المتجر — الأصغر أولًا. اتركه فارغًا
+                  ليُضاف في النهاية.
+                </FieldDescription>
+                {fieldErrors.position ? (
+                  <FieldError>{fieldErrors.position}</FieldError>
+                ) : null}
+              </Field>
+
+              <Field orientation="horizontal">
+                <FieldContent>
+                  <FieldTitle>
+                    <FieldLabel htmlFor="category-active">
+                      معروضة في المتجر
+                    </FieldLabel>
+                  </FieldTitle>
+                  <FieldDescription>
+                    أوقفها لإخفاء الفئة عن الزوار دون حذفها.
+                  </FieldDescription>
+                </FieldContent>
+                {/* Base UI's Switch renders its own hidden checkbox input, so
+                    `name` is all it needs to reach `FormData` — and it submits
+                    "on" when checked and nothing when not, which is exactly the
+                    presence check the schema does. */}
+                <Switch
+                  id="category-active"
+                  name="isActive"
+                  defaultChecked={category?.isActive ?? true}
+                />
+              </Field>
+            </FieldGroup>
+          </DialogBody>
 
           <DialogFooter>
             <DialogClose

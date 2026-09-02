@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { Field as FieldPrimitive } from "@base-ui/react/field"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
@@ -52,7 +52,10 @@ function FieldGroup({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 const fieldVariants = cva(
-  "group/field flex w-full gap-2 data-[invalid=true]:text-destructive",
+  // Both spellings on purpose: `data-[invalid=true]` is what shadcn's own
+  // markup writes, and a bare `data-invalid` is what Base UI's Field.Root
+  // sets when the form reports an error for this field's name.
+  "group/field flex w-full gap-2 data-[invalid=true]:text-destructive data-invalid:text-destructive",
   {
     variants: {
       orientation: {
@@ -69,13 +72,26 @@ const fieldVariants = cva(
   }
 )
 
+/**
+ * One labelled field.
+ *
+ * This is Base UI's `Field.Root` rather than a plain `<div>`, which buys the
+ * thing a `<div>` cannot: a **name**. Give it one and the field joins the
+ * surrounding `<Form>`'s error map — it goes `data-invalid` when the form
+ * reports an error under that name, its `<FieldError />` renders the message
+ * without being told what it is, and the error clears when the control is
+ * edited. See `components/ui/form.tsx`.
+ *
+ * Without a `name` it behaves exactly as the plain wrapper did, which is why
+ * every existing call site kept working when this changed.
+ */
 function Field({
   className,
   orientation = "vertical",
   ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof fieldVariants>) {
+}: FieldPrimitive.Root.Props & VariantProps<typeof fieldVariants>) {
   return (
-    <div
+    <FieldPrimitive.Root
       role="group"
       data-slot="field"
       data-orientation={orientation}
@@ -173,54 +189,54 @@ function FieldSeparator({
   )
 }
 
+/**
+ * The message under an invalid field.
+ *
+ * Two modes, and the difference is whether it was handed `children`:
+ *
+ *   - **`<FieldError />`** — reads the message out of the surrounding
+ *     `<Form errors>` for this field's `name`, and renders nothing when there
+ *     is no error. This is the one to reach for: the call site stops
+ *     repeating `{errors.x ? … : null}` around every field, and it cannot
+ *     drift from what the form thinks is invalid.
+ *   - **`<FieldError>message</FieldError>`** — always renders, for a message
+ *     that is not part of the form's error map at all. `match` is forced on
+ *     for this case, because Base UI otherwise hides children on a field it
+ *     considers valid.
+ *
+ * shadcn's `errors={[{message}]}` array prop is gone. Nothing in this project
+ * used it — it exists upstream for `react-hook-form`, which is not a
+ * dependency here (see docs/folder-structure.md).
+ */
 function FieldError({
   className,
   children,
-  errors,
   ...props
-}: React.ComponentProps<"div"> & {
-  errors?: Array<{ message?: string } | undefined>
-}) {
-  const content = useMemo(() => {
-    if (children) {
-      return children
-    }
+}: FieldPrimitive.Error.Props) {
+  const errorClass = cn("text-sm font-normal text-destructive", className)
 
-    if (!errors?.length) {
-      return null
-    }
-
-    const uniqueErrors = [
-      ...new Map(errors.map((error) => [error?.message, error])).values(),
-    ]
-
-    if (uniqueErrors?.length == 1) {
-      return uniqueErrors[0]?.message
-    }
-
+  // Two returns rather than a computed `match`, so that `children` is never
+  // passed as `undefined` — that would win the prop merge and blank out the
+  // message Base UI was about to render.
+  if (children != null) {
     return (
-      <ul className="ms-4 flex list-disc flex-col gap-1">
-        {uniqueErrors.map(
-          (error, index) =>
-            error?.message && <li key={index}>{error.message}</li>
-        )}
-      </ul>
+      <FieldPrimitive.Error
+        match
+        data-slot="field-error"
+        className={errorClass}
+        {...props}
+      >
+        {children}
+      </FieldPrimitive.Error>
     )
-  }, [children, errors])
-
-  if (!content) {
-    return null
   }
 
   return (
-    <div
-      role="alert"
+    <FieldPrimitive.Error
       data-slot="field-error"
-      className={cn("text-sm font-normal text-destructive", className)}
+      className={errorClass}
       {...props}
-    >
-      {content}
-    </div>
+    />
   )
 }
 

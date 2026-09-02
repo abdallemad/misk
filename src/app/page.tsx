@@ -55,7 +55,7 @@ const FEATURED: FeaturedProduct[] = [
   {
     name: "عنبر الورد",
     category: "women",
-    type: "ALCOHOL",
+    type: "ALCOHOL_BASED",
     from: 690,
     stock: 24,
     note: "ورد دمشقي فوق قاعدة عنبر دافئة، تثبت طويلًا على البشرة.",
@@ -71,7 +71,7 @@ const FEATURED: FeaturedProduct[] = [
   {
     name: "برغموت أزرق",
     category: "youth",
-    type: "ALCOHOL",
+    type: "ALCOHOL_BASED",
     from: 540,
     stock: 12,
     note: "حمضيات منعشة مع نفَس بحري خفيف، لنهار طويل.",

@@ -211,7 +211,7 @@ const PRODUCTS = [
   {
     name: "عنبر الورد",
     category: "women",
-    type: "ALCOHOL",
+    type: "ALCOHOL_BASED",
     from: 690,
     stock: 24,
   },
@@ -225,7 +225,7 @@ const PRODUCTS = [
   {
     name: "برغموت أزرق",
     category: "youth",
-    type: "ALCOHOL",
+    type: "ALCOHOL_BASED",
     from: 540,
     stock: 0,
   },
