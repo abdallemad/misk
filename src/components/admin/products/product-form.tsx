@@ -129,20 +129,16 @@ export function ProductForm({
   )
 
   /**
-   * What the schema said here in the browser, or `null` when it has not
-   * spoken since the last dispatch.
+   * Whatever is currently wrong, keyed by field name.
    *
-   * The displayed errors are **derived**, not stored: a local refusal wins
-   * while it stands, and otherwise the server's answer is read straight out
-   * of the action state. Copying `state.errors` into state with an effect
-   * would work too, and would add a render pass plus a window in which the
-   * two disagreed about the same field.
+   * Written from two places — the submit handler when the schema refuses
+   * before the network is touched, and the effect below when the server
+   * refuses after — and cleared from a third, `dismissError`. It has to be
+   * state this component owns rather than a value derived from `state.errors`,
+   * precisely because of that third case: some errors have to be retractable
+   * without a round trip. See `dismissError`.
    */
-  const [clientErrors, setClientErrors] = useState<ProductFormErrors | null>(
-    null
-  )
-
-  const errors = clientErrors ?? state.errors
+  const [errors, setErrors] = useState<ProductFormErrors>({})
 
   const [productType, setProductType] = useState<ProductType>(
     product?.productType ?? "ALCOHOL_BASED"
@@ -165,6 +161,11 @@ export function ProductForm({
       return
     }
 
+    // Copying the action's answer into state, rather than reading it straight
+    // out of `state.errors`, is what makes `dismissError` possible below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setErrors(state.errors)
+
     // Field-level problems already render under the inputs that caused them.
     // Only failures with nowhere else to appear get a toast: a permission
     // refusal, a dead database, a variant blocked by an order.
@@ -185,13 +186,33 @@ export function ProductForm({
     const parsed = parseProductForm(formData)
 
     if (!parsed.success) {
-      setClientErrors(parsed.errors)
+      setErrors(parsed.errors)
       return
     }
 
-    // Hand the field back to the server's answer, which is about to arrive.
-    setClientErrors(null)
+    setErrors({})
     startTransition(() => formAction(formData))
+  }
+
+  /**
+   * Retract one error without a round trip.
+   *
+   * `<Form>` refuses to submit while any field it knows about is invalid, and
+   * a field normally stops being invalid when its own control fires a change
+   * event — typing in the input, picking from the select. The gallery is the
+   * exception: most of its edits are React state (a tile removed, a pick
+   * undone) and never touch the file input, so "الحد الأقصى 8 صور" would
+   * survive the admin removing one and the form would go on refusing a
+   * submission that is now perfectly valid.
+   */
+  function dismissError(field: string) {
+    setErrors((current) => {
+      if (!(field in current)) return current
+
+      const next = { ...current }
+      delete next[field]
+      return next
+    })
   }
 
   function addVariantRow() {
@@ -351,7 +372,11 @@ export function ProductForm({
         title="الصور"
         description="أول صورة هي الغلاف — هي التي تظهر في قوائم المتجر والسلة."
       >
-        <ProductGalleryField images={product?.images ?? []} disabled={pending} />
+        <ProductGalleryField
+          images={product?.images ?? []}
+          onChanged={() => dismissError("images")}
+          disabled={pending}
+        />
       </SectionCard>
 
       <SectionCard

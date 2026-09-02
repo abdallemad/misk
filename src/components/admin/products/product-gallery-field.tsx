@@ -32,6 +32,17 @@ import type { ProductImageRow } from "@/services/product.service"
 type ProductGalleryFieldProps = {
   /** Photos already on the row, in their stored order. */
   images: ProductImageRow[]
+  /**
+   * Called whenever the gallery changes.
+   *
+   * The form uses it to drop any standing error on `images`. Every other
+   * field in this form clears its own error when its control fires a change
+   * event — but most of this one's edits are React state (a tile removed, a
+   * pick undone) and never touch the file input, so "you have too many
+   * images" would otherwise survive the admin removing one, and Base UI would
+   * go on refusing to submit a form that is now perfectly valid.
+   */
+  onChanged?: () => void
   disabled?: boolean
 }
 
@@ -64,6 +75,7 @@ type PickedFile = {
  */
 export function ProductGalleryField({
   images,
+  onChanged,
   disabled,
 }: ProductGalleryFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -130,6 +142,8 @@ export function ProductGalleryField({
    * which file was the problem.
    */
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
+    onChanged?.()
+
     const incoming = Array.from(event.target.files ?? [])
 
     const oversized = incoming.filter((file) => file.size > MAX_IMAGE_BYTES)
@@ -167,6 +181,7 @@ export function ProductGalleryField({
 
   function dropPicked(key: string) {
     setNotice(null)
+    onChanged?.()
 
     const target = picked.find((item) => item.key === key)
     if (target) URL.revokeObjectURL(target.preview)
@@ -186,11 +201,13 @@ export function ProductGalleryField({
   }
 
   function remove(image: ProductImageRow) {
+    onChanged?.()
     setKept((current) => current.filter((item) => item.id !== image.id))
     setRemoved((current) => [...current, image])
   }
 
   function restore(image: ProductImageRow) {
+    onChanged?.()
     setRemoved((current) => current.filter((item) => item.id !== image.id))
     setKept((current) => [...current, image])
   }
