@@ -7,6 +7,7 @@ import {
   SparklesIcon,
 } from "lucide-react"
 
+import { AuthNav } from "@/components/shared/auth-nav"
 import { BrandLockup } from "@/components/shared/brand-lockup"
 import { StockBadge } from "@/components/shared/status-badge"
 import { ThemeToggle } from "@/components/shared/theme-toggle"
@@ -123,6 +124,7 @@ function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-1">
+          <AuthNav />
           <ThemeToggle />
           <Link
             href="/cart"

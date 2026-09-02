@@ -1,3 +1,5 @@
+import { ClerkProvider } from "@clerk/nextjs";
+import { shadcn } from "@clerk/ui/themes";
 import type { Metadata } from "next";
 import { Amiri, Geist_Mono, IBM_Plex_Sans_Arabic } from "next/font/google";
 
@@ -52,10 +54,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${sans.variable} ${display.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <ThemeProvider>
-          <TooltipProvider>{children}</TooltipProvider>
-          <Toaster />
-        </ThemeProvider>
+        <ClerkProvider appearance={{ theme: shadcn }}>
+          <ThemeProvider>
+            <TooltipProvider>{children}</TooltipProvider>
+            <Toaster />
+          </ThemeProvider>
+        </ClerkProvider>
       </body>
     </html>
   );

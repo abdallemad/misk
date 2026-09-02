@@ -3,7 +3,7 @@
 ## Related documents
 
 - [`business-analysis.md`](./business-analysis.md) — product scope and requirements
-- [`erd.md`](./erd.md) — entity relationships (Category, Product, ProductVariant, Cart, Order, Customer)
+- [`erd.md`](./erd.md) — entity relationships (Category, Product, ProductVariant, Cart, Order, User)
 - [`tech-stack.md`](./tech-stack.md) — Next 16, Clerk auth, Cloudflare R2 (product images), shadcn/Base UI, Prisma, Stripe
 - [`storefront-layout.md`](./storefront-layout.md) — the storefront shell (`(marketing)` header, `(shop)` header + category nav), the shared brand lockup, the cart drawer and the account menu
 - [`landing-page.md`](./landing-page.md) — `/` and `/about`, the Misk brand story and manufacturing story
@@ -14,6 +14,7 @@
 - [`cart-feature.md`](./cart-feature.md) — `/cart` and Add to cart: variant-aware line items, and why the same product can appear twice with two different sizes
 - [`checkout-orders-feature.md`](./checkout-orders-feature.md) — checkout and `/account/orders`: capturing a price + variant snapshot at time of purchase
 - [`payments-feature.md`](./payments-feature.md) — Stripe Checkout and `POST /api/webhook`: the only route handler in the app
+- [`auth-callback.md`](./auth-callback.md) — `/auth-callback`, the sign-in landing strip that mirrors the Clerk user into the `User` table
 - [`admin-dashboard.md`](./admin-dashboard.md) — the `/admin` console and its reusable components
 - [`admin-access-control.md`](./admin-access-control.md) — how `/admin` is locked down
 - [`categories-feature.md`](./categories-feature.md) — admin CRUD for Youth / Women / Men
@@ -100,12 +101,15 @@ app/
 │       ├── orders/            #   /account/orders + [orderNumber] — checkout-orders-feature.md
 │       └── profile/           #   /account/profile
 │
-├── (admin)/                 # the dashboard — admin-dashboard.md
+├── admin/                   # the dashboard — admin-dashboard.md
+│                            #   a plain folder, not a route group: the URL
+│                            #   really is /admin, so a group would only
+│                            #   have to re-add the segment
 │
 ├── api/
 │   └── webhook/                #   POST /api/webhook — payments-feature.md
 │
-├── sign-in/  sign-up/  auth-callback/
+├── sign-in/  sign-up/  auth-callback/   # auth-callback.md
 │
 ├── layout.tsx                # <html>, <body>, Clerk + Query providers
 │
@@ -357,7 +361,8 @@ Business Logic Layer.
 ```text
 services/
 │
-├── auth.service.ts
+├── auth.service.ts        # Clerk -> User sync, role resolution — auth-callback.md
+├── admin.service.ts       # read-only counts for the /admin overview
 ├── product.service.ts     # variant pricing, stock rules, ingredients
 ├── category.service.ts
 ├── search.service.ts
@@ -438,9 +443,20 @@ Shared between forms and server actions whenever possible.
 
 Application libraries and shared clients.
 
-Examples:
+```text
+lib/
+│
+├── db.ts        # the Prisma client — import as `import { db } from "@/lib/db"`
+└── utils.ts     # `cn()`
+```
 
-- Prisma Client
+In development the client is parked on `globalThis` so `next dev`'s module
+reloading reuses one connection pool instead of opening a new one on every
+save and exhausting the database's connection limit. Only the service layer
+should import it.
+
+Also belongs here:
+
 - React Query Client
 - Clerk Configuration
 - Cloudflare R2 Configuration (product image gallery uploads)
@@ -474,7 +490,9 @@ Core models (see [`erd.md`](./erd.md) for the full diagram):
 - `Cart` / `CartItem` — cartId, variantId, quantity
 - `Order` / `OrderItem` — order-time snapshot of product name, variant
   label, and price, so a later price change never rewrites history
-- `Customer` — mirrored from Clerk
+- `User` — mirrored from Clerk. `clerkId` is the join key (not `email`,
+  which a user can change); `role` is `USER | ADMIN`, itself mirrored from
+  Clerk `publicMetadata.role`. Written by `/auth-callback`.
 
 ---
 
@@ -487,7 +505,7 @@ Examples:
 - Product
 - ProductVariant
 - Category
-- Customer
+- User
 - Order
 - CartItem
 - API Response
@@ -515,9 +533,21 @@ Utilities should not depend on React or the database.
 
 Application constants.
 
-Examples:
+```text
+constants/
+│
+├── routes.ts          # every path, plus `safeRedirect` / `authCallbackUrl`
+├── admin-nav.ts       # the /admin sidebar as data — admin-dashboard.md
+└── design-system.ts   # tones, order status, stock, category + type accents
+```
 
-- Routes
+Nothing outside `routes.ts` writes a route string literal, so a rename costs
+one edit rather than a grep. `admin-nav.ts` is read by the sidebar, the
+breadcrumbs *and* the overview's section cards, so the three cannot disagree
+about what a route is called.
+
+Also belongs here:
+
 - Query Keys
 - Product Types (`ALCOHOL`, `RAW_OIL`)
 - Bottle Sizes / Bottle Styles / Oil Weights
