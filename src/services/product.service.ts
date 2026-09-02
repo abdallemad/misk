@@ -13,17 +13,21 @@ import { IMAGE_FORMATS_LABEL } from "@/constants/uploads"
 import { db } from "@/lib/db"
 import { deleteImage, saveImage, UnsupportedImageError } from "@/lib/uploads"
 import {
+  ingredientKey,
   variantCombination,
-  type ProductFieldErrors,
+  variantFieldName,
+  type ProductFormErrors,
   type ProductFormInput,
-  type ProductVariantErrors,
   type ProductVariantInput,
 } from "@/schemas/product.schema"
+import { resolveIngredientIds } from "@/services/ingredient.service"
 
 /**
  * Product business logic — the only module that reads or writes `Product`,
- * `ProductImage` and `ProductVariant`, and the only one that decides what a
- * legal perfume is.
+ * `ProductImage`, `ProductVariant` and `ProductIngredient`, and the only one
+ * that decides what a legal perfume is. (The `Ingredient` master list itself
+ * belongs to `ingredient.service.ts`; this module owns the join rows that
+ * point at it, not the materials.)
  *
  * It owns three rules the rest of the application depends on and can never
  * be allowed to disagree about:
@@ -106,6 +110,13 @@ export type ProductImageRow = {
   position: number
 }
 
+/** One raw material on this perfume, flattened out of the join table. */
+export type ProductIngredientRow = {
+  ingredientId: string
+  name: string
+  note: string | null
+}
+
 /** Everything the edit form needs, and nothing the table does not. */
 export type ProductDetail = {
   id: string
@@ -117,16 +128,12 @@ export type ProductDetail = {
   isActive: boolean
   images: ProductImageRow[]
   variants: ProductVariantRow[]
+  ingredients: ProductIngredientRow[]
 }
 
 export type ProductMutationResult =
   | { ok: true; product: { id: string; name: string } }
-  | {
-      ok: false
-      message: string
-      fieldErrors?: ProductFieldErrors
-      variantErrors?: ProductVariantErrors
-    }
+  | { ok: false; message: string; errors?: ProductFormErrors }
 
 export type ProductDeleteResult = { ok: true } | { ok: false; message: string }
 
@@ -192,7 +199,7 @@ export async function listProducts(): Promise<ProductRow[]> {
   })
 }
 
-/** One perfume with its gallery and variants, or `null`. */
+/** One perfume with its gallery, variants and ingredients, or `null`. */
 export async function getProduct(id: string): Promise<ProductDetail | null> {
   const product = await db.product.findUnique({
     where: { id },
@@ -210,6 +217,10 @@ export async function getProduct(id: string): Promise<ProductDetail | null> {
           { oilGrade: "asc" },
         ],
         include: { _count: { select: { orderItems: true } } },
+      },
+      ingredients: {
+        orderBy: { ingredient: { name: "asc" } },
+        include: { ingredient: { select: { id: true, name: true } } },
       },
     },
   })
@@ -241,6 +252,11 @@ export async function getProduct(id: string): Promise<ProductDetail | null> {
       isActive: variant.isActive,
       orderItemCount: variant._count.orderItems,
     })),
+    ingredients: product.ingredients.map((row) => ({
+      ingredientId: row.ingredient.id,
+      name: row.ingredient.name,
+      note: row.note,
+    })),
   }
 }
 
@@ -249,7 +265,7 @@ export async function getProduct(id: string): Promise<ProductDetail | null> {
  * ---------------------------------------------------------------------- */
 
 /**
- * Create a perfume, its gallery and its variants.
+ * Create a perfume, its gallery, its variants and its ingredient links.
  *
  * The gallery files are written to disk *before* any row, for the reason
  * `docs/categories-feature.md` sets out: a row pointing at a file that failed
@@ -257,9 +273,11 @@ export async function getProduct(id: string): Promise<ProductDetail | null> {
  * was rejected is an orphan that costs disk and nothing else — and is deleted
  * explicitly below anyway.
  *
- * The rows go in as one nested write, which Prisma runs in a single
- * transaction. A product with no variants cannot be bought, so "product
- * created, variants failed" is not a state worth being able to reach.
+ * The rows themselves go in one interactive transaction, because the
+ * ingredient master list may need rows of its own before the join rows can
+ * point at them. A product with no variants cannot be bought, and an
+ * ingredient created for a product that then failed to save is a material
+ * nobody chose to add — neither is a state worth being able to reach.
  */
 export async function createProduct(
   input: ProductFormInput
@@ -278,29 +296,35 @@ export async function createProduct(
   try {
     const skus = await mintSkus(input.slug, input.productType, input.variants)
 
-    // One nested write, which Prisma already runs in a single transaction —
-    // so there is no `$transaction` wrapper here, and "product created,
-    // variants failed" is not a state this can reach. `updateProduct` needs
-    // an explicit one because it is several statements.
-    const product = await db.product.create({
-      data: {
-        name: input.name,
-        slug: input.slug,
-        description: input.description,
-        categoryId: input.categoryId,
-        productType: input.productType,
-        isActive: input.isActive,
-        images: {
-          create: urls.map((url, position) => ({ url, position })),
+    const product = await db.$transaction(async (tx) => {
+      const ingredientIds = await resolveIngredientIds(tx, input.ingredients)
+
+      return tx.product.create({
+        data: {
+          name: input.name,
+          slug: input.slug,
+          description: input.description,
+          categoryId: input.categoryId,
+          productType: input.productType,
+          isActive: input.isActive,
+          images: {
+            create: urls.map((url, position) => ({ url, position })),
+          },
+          variants: {
+            create: input.variants.map((variant) => ({
+              ...variantColumns(input.productType, variant),
+              sku: skus.get(variant.key)!,
+            })),
+          },
+          ingredients: {
+            create: input.ingredients.map((ingredient) => ({
+              ingredientId: ingredientIds.get(ingredientKey(ingredient.name))!,
+              note: ingredient.note,
+            })),
+          },
         },
-        variants: {
-          create: input.variants.map((variant) => ({
-            ...variantColumns(input.productType, variant),
-            sku: skus.get(variant.key)!,
-          })),
-        },
-      },
-      select: { id: true, name: true },
+        select: { id: true, name: true },
+      })
     })
 
     return { ok: true, product }
@@ -316,7 +340,7 @@ export async function createProduct(
 /**
  * Update a perfume in place.
  *
- * Three sub-problems, in the order they have to be solved:
+ * Four sub-problems, in the order they have to be solved:
  *
  *   - **Variants that disappeared from the form.** Deleted, unless an order
  *     points at one, in which case the whole save is refused with an
@@ -327,6 +351,12 @@ export async function createProduct(
  *     order, so a removal and a reorder are one field. Files are unlinked
  *     only after the rows commit — unlinking first would destroy the live
  *     image if the transaction rolled back.
+ *   - **The ingredient links**, which are replaced wholesale: they carry no
+ *     identity of their own beyond `(product, ingredient)`, and a note is
+ *     cheap to rewrite. The *materials* they point at are never deleted here
+ *     — dropping an ingredient from one perfume must not remove it from the
+ *     shop's master list, where other perfumes and the trust panel still use
+ *     it.
  *   - **The rest**, which is an ordinary update.
  */
 export async function updateProduct(
@@ -369,7 +399,7 @@ export async function updateProduct(
   if (ordered.length > 0) {
     return {
       ok: false,
-      message: `${ordered.length === 1 ? "أحد الأحجام المحذوفة مرتبط" : `${ordered.length} من الأحجام المحذوفة مرتبطة`} بطلبات سابقة، ولا يمكن حذفه. أعِده وأوقف عرضه بدل حذفه.`,
+      message: `${ordered.length === 1 ? "أحد الخيارات المحذوفة مرتبط" : `${ordered.length} من الخيارات المحذوفة مرتبطة`} بطلبات سابقة، ولا يمكن حذفه. أعِده وأوقف عرضه بدل حذفه.`,
     }
   }
 
@@ -433,6 +463,17 @@ export async function updateProduct(
         })
       }
 
+      const ingredientIds = await resolveIngredientIds(tx, input.ingredients)
+
+      await tx.productIngredient.deleteMany({ where: { productId: id } })
+      await tx.productIngredient.createMany({
+        data: input.ingredients.map((ingredient) => ({
+          productId: id,
+          ingredientId: ingredientIds.get(ingredientKey(ingredient.name))!,
+          note: ingredient.note,
+        })),
+      })
+
       return tx.product.update({
         where: { id },
         data: {
@@ -460,14 +501,18 @@ export async function updateProduct(
 }
 
 /**
- * Delete a perfume, its gallery and its variants.
+ * Delete a perfume, its gallery, its variants and its ingredient links.
  *
- * `ProductImage` and `ProductVariant` cascade from `Product`, so the database
- * removes them — but `OrderItem.variantId` is `Restrict`, which means a
- * perfume anybody has ever bought cannot be deleted at all. That is the right
- * refusal: an order has to keep being able to say what was in it. `isActive`
- * is the reversible way to take a perfume off the storefront, which is what
- * lets this delete stay honest about being permanent.
+ * `ProductImage`, `ProductVariant` and `ProductIngredient` all cascade from
+ * `Product`, so the database removes them — but `OrderItem.variantId` is
+ * `Restrict`, which means a perfume anybody has ever bought cannot be deleted
+ * at all. That is the right refusal: an order has to keep being able to say
+ * what was in it. `isActive` is the reversible way to take a perfume off the
+ * storefront, which is what lets this delete stay honest about being
+ * permanent.
+ *
+ * The `Ingredient` rows themselves survive. They belong to the shop, not to
+ * this perfume.
  */
 export async function deleteProduct(id: string): Promise<ProductDeleteResult> {
   const product = await db.product.findUnique({
@@ -515,46 +560,48 @@ export async function deleteProduct(id: string): Promise<ProductDeleteResult> {
  * Re-check the two rules the schema already checked, because the schema is
  * not the gate.
  *
- * `parseProductForm` runs in the Server Action and catches both of these with
- * better messages. This runs in the service, which is the layer that a caller
- * bypassing the action — a future seed script, a background job, a second
- * action written in a hurry — still has to go through. Duplicated validation
- * is the cheapest thing in this file; a raw-oil variant with a bottle style
- * is not.
+ * `parseProductForm` runs in the browser *and* in the Server Action, and
+ * catches both of these with better messages. This runs in the service, which
+ * is the layer that a caller bypassing the action — a future seed script, a
+ * background job, a second action written in a hurry — still has to go
+ * through. Duplicated validation is the cheapest thing in this file; a
+ * raw-oil variant with a bottle style is not.
+ *
+ * The keys it returns are the form's own field names, so the result drops
+ * straight into `<Form errors>` beside anything the schema produced.
  */
 function checkVariants(input: ProductFormInput): ProductMutationResult | null {
   const required = VARIANT_AXES[input.productType]
-  const variantErrors: ProductVariantErrors = {}
+  const errors: ProductFormErrors = {}
   const seen = new Set<string>()
+
+  const put = (key: string, message: string) => {
+    if (!(key in errors)) errors[key] = message
+  }
 
   for (const variant of input.variants) {
     for (const axis of ["bottleSize", "bottleStyle", "oilWeight"] as const) {
       const isRequired = required.includes(axis)
 
       if (isRequired && variant[axis] === null) {
-        ;(variantErrors[variant.key] ??= {})[axis] = "مطلوب لهذا النوع."
+        put(variantFieldName(variant.key, axis), "مطلوب لهذا النوع.")
       }
 
       if (!isRequired && variant[axis] !== null) {
-        ;(variantErrors[variant.key] ??= {}).row =
-          "هذا الصف لا يطابق نوع المنتج."
+        put(variantFieldName(variant.key, "row"), "هذا الصف لا يطابق نوع المنتج.")
       }
     }
 
     const combination = variantCombination(variant)
     if (seen.has(combination)) {
-      ;(variantErrors[variant.key] ??= {}).row = "هذا التكوين مكرر."
+      put(variantFieldName(variant.key, "row"), "هذا التكوين مكرر.")
     }
     seen.add(combination)
   }
 
-  if (Object.keys(variantErrors).length === 0) return null
+  if (Object.keys(errors).length === 0) return null
 
-  return {
-    ok: false,
-    message: "راجع الأحجام المميّزة بالأحمر.",
-    variantErrors,
-  }
+  return { ok: false, message: "راجع الخيارات المميّزة بالأحمر.", errors }
 }
 
 /**
@@ -706,7 +753,7 @@ function imageFailure(error: unknown): ProductMutationResult {
     return {
       ok: false,
       message: "تعذّر رفع الصور.",
-      fieldErrors: {
+      errors: {
         images: `أحد الملفات ليس صورة صالحة (${IMAGE_FORMATS_LABEL}).`,
       },
     }
@@ -716,7 +763,7 @@ function imageFailure(error: unknown): ProductMutationResult {
   return {
     ok: false,
     message: "تعذّر رفع الصور.",
-    fieldErrors: { images: "تعذّر حفظ الصور على الخادم. حاول مرة أخرى." },
+    errors: { images: "تعذّر حفظ الصور على الخادم. حاول مرة أخرى." },
   }
 }
 
@@ -736,7 +783,7 @@ function writeFailure(error: unknown, fallback: string): ProductMutationResult {
       return {
         ok: false,
         message: "المعرّف مستخدم بالفعل.",
-        fieldErrors: { slug: "هذا المعرّف مستخدم في عطر آخر — اختر غيره." },
+        errors: { slug: "هذا المعرّف مستخدم في عطر آخر — اختر غيره." },
       }
     }
 
@@ -748,7 +795,7 @@ function writeFailure(error: unknown, fallback: string): ProductMutationResult {
       return {
         ok: false,
         message: "الفئة المختارة لم تعد موجودة.",
-        fieldErrors: { categoryId: "اختر فئة أخرى." },
+        errors: { categoryId: "اختر فئة أخرى." },
       }
     }
   }

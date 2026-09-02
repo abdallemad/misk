@@ -32,7 +32,6 @@ import type { ProductImageRow } from "@/services/product.service"
 type ProductGalleryFieldProps = {
   /** Photos already on the row, in their stored order. */
   images: ProductImageRow[]
-  error?: string
   disabled?: boolean
 }
 
@@ -65,7 +64,6 @@ type PickedFile = {
  */
 export function ProductGalleryField({
   images,
-  error,
   disabled,
 }: ProductGalleryFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -198,7 +196,7 @@ export function ProductGalleryField({
   }
 
   return (
-    <Field>
+    <Field name="images">
       <FieldLabel htmlFor="product-images">الصور</FieldLabel>
 
       {total === 0 ? (
@@ -270,7 +268,6 @@ export function ProductGalleryField({
         ref={inputRef}
         onChange={handleChange}
         disabled={disabled || remaining <= 0}
-        aria-invalid={Boolean(error)}
         className="h-auto py-1.5 file:me-2"
       />
 
@@ -279,8 +276,13 @@ export function ProductGalleryField({
         {MAX_GALLERY_IMAGES} صور. الأولى هي صورة الغلاف.
       </FieldDescription>
 
+      {/* Two errors, from two places. The first is this component's own —
+          a file it refused before the form was ever submitted — so it is
+          passed as children and always renders. The second is whatever the
+          schema or the server said about `images`, which the field finds by
+          its own name. */}
       {notice ? <FieldError>{notice}</FieldError> : null}
-      {error ? <FieldError>{error}</FieldError> : null}
+      <FieldError />
     </Field>
   )
 }

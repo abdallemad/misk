@@ -41,8 +41,7 @@ export async function saveProductAction(
     return {
       status: "error",
       message: "ليست لديك صلاحية لتعديل العطور.",
-      fieldErrors: {},
-      variantErrors: {},
+      errors: {},
       productId: null,
     }
   }
@@ -53,8 +52,7 @@ export async function saveProductAction(
     return {
       status: "error",
       message: "راجع الحقول المميّزة بالأحمر.",
-      fieldErrors: parsed.fieldErrors,
-      variantErrors: parsed.variantErrors,
+      errors: parsed.errors,
       productId: null,
     }
   }
@@ -70,8 +68,7 @@ export async function saveProductAction(
     return {
       status: "error",
       message: result.message,
-      fieldErrors: result.fieldErrors ?? {},
-      variantErrors: result.variantErrors ?? {},
+      errors: result.errors ?? {},
       productId: null,
     }
   }
@@ -87,8 +84,7 @@ export async function saveProductAction(
     message: id
       ? `تم تحديث «${result.product.name}».`
       : `تمت إضافة «${result.product.name}».`,
-    fieldErrors: {},
-    variantErrors: {},
+    errors: {},
     productId: result.product.id,
   }
 }

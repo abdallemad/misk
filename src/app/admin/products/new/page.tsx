@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/empty"
 import { ROUTES } from "@/constants/routes"
 import { listCategoryOptions } from "@/services/category.service"
+import { listIngredients } from "@/services/ingredient.service"
 
 export const metadata = { title: "عطر جديد" }
 
@@ -28,7 +29,10 @@ export const metadata = { title: "عطر جديد" }
  * select with nothing in it and a form that can only fail on submit.
  */
 export default async function NewProductPage() {
-  const categories = await listCategoryOptions()
+  const [categories, ingredients] = await Promise.all([
+    listCategoryOptions(),
+    listIngredients(),
+  ])
 
   return (
     <PageContainer>
@@ -54,7 +58,11 @@ export default async function NewProductPage() {
           </Button>
         </Empty>
       ) : (
-        <ProductForm product={null} categories={categories} />
+        <ProductForm
+          product={null}
+          categories={categories}
+          ingredients={ingredients}
+        />
       )}
     </PageContainer>
   )

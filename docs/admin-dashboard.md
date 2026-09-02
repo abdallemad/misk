@@ -253,6 +253,44 @@ The full reasoning — including why `svh` and not `vh`, and why `minmax(0,1fr)`
 and not `1fr` — is on the component in
 [`dialog.tsx`](../src/components/ui/dialog.tsx).
 
+### Forms: `<Form>`, `<Field name>`, `<FieldError />`
+
+A form in this console is three components from `components/ui`, and the whole
+error story falls out of them:
+
+```tsx
+<Form errors={errors} onSubmit={handleSubmit}>
+  <Field name="slug">
+    <FieldLabel htmlFor="slug">المعرّف</FieldLabel>
+    <Input id="slug" name="slug" />
+    <FieldError />
+  </Field>
+</Form>
+```
+
+`errors` is a flat `Record<fieldName, message>` — hand it a Zod parse result
+and every matching field goes red, every `<FieldError />` finds its own
+message with no props, and focus moves to the first invalid control. Editing a
+flagged field clears its message.
+
+Three things worth knowing:
+
+- **`<Form>` renders `noValidate`.** Native `required` / `min` / `pattern`
+  bubbles are off by design: they are a second, weaker copy of rules that live
+  in the Zod schema, they cannot express most of them, and they pre-empt the
+  better message. `maxLength` and `accept` stay — they prevent input rather
+  than report on it.
+- **`<Field>` is Base UI's `Field.Root`.** Its `name` is what joins it to the
+  error map; without one it behaves exactly like the plain wrapper it used to
+  be, which is why the category dialog kept working unchanged.
+- **`<FieldError />` with no children** reads from the form.
+  `<FieldError>message</FieldError>` always renders, for a message the form
+  does not know about — the gallery field uses both.
+
+[`products-feature.md`](./products-feature.md) is the worked example, including
+why the product form dispatches its action from `onSubmit` rather than
+`<form action>`.
+
 ### Conventions these encode
 
 - **`PageHeader` owns the `<h1>`** and nothing else in the console does, so

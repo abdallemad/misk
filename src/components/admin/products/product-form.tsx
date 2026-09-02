@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useActionState, useEffect, useState } from "react"
+import { startTransition, useActionState, useEffect, useState } from "react"
 import type { ProductType } from "@prisma/client"
 import { toast } from "sonner"
 
@@ -18,6 +18,7 @@ import {
   FieldLabel,
   FieldTitle,
 } from "@/components/ui/field"
+import { Form } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -39,48 +40,86 @@ import {
   DESCRIPTION_MAX,
   IDLE_PRODUCT_FORM_STATE,
   NAME_MAX,
+  parseProductForm,
   SLUG_MAX,
+  type ProductFormErrors,
 } from "@/schemas/product.schema"
 import type { CategoryOption } from "@/services/category.service"
+import type { IngredientOption } from "@/services/ingredient.service"
 import type { ProductDetail } from "@/services/product.service"
 
 import { ProductGalleryField } from "./product-gallery-field"
+import {
+  ProductIngredientsField,
+  type IngredientRow,
+} from "./product-ingredients-field"
 import { ProductVariantsField, type VariantRow } from "./product-variants-field"
 
 type ProductFormProps = {
   /** The perfume being edited, or `null` to create a new one. */
   product: ProductDetail | null
   categories: CategoryOption[]
+  ingredients: IngredientOption[]
 }
 
 /**
  * The create/edit form for one perfume.
  *
  * **A page, not a dialog** — the opposite call from
- * `docs/categories-feature.md`, and for the reason that document gives:
- * a category is six fields and fits in a dialog without scrolling, while a
- * perfume carries a gallery and an open-ended collection of variants. It also
- * means an admin can link someone to a half-finished product, and that the
- * back button does the obvious thing.
+ * `docs/categories-feature.md`, and for the reason that document gives: a
+ * category is six fields and fits in a dialog, while a perfume carries a
+ * gallery, a list of raw materials and an open-ended collection of variants.
+ * It also means an admin can link someone to a half-finished product, and
+ * that the back button does the obvious thing.
  *
- * **Two pieces of real client state, and only two.** `productType` decides
- * which selects the variant editor renders, and `rows` is the set of variants
- * that exist. Everything else is an uncontrolled `defaultValue` read out of
- * the browser's own `FormData` — the same trade the category form makes,
- * which is why `docs/folder-structure.md`'s note about `react-hook-form`
- * being "the one form that should pull it in" has not been acted on yet:
- * dependent *fields* turned out to be dependent *structure*, and structure is
- * cheap to hold in `useState`.
+ * ## A rejected save never costs the admin their typing
  *
- * **It navigates away on success**, both on create and on edit. That is not
- * cosmetic: after a save, rows the admin added have real database ids that
- * this component has never seen, and a second submit from the same mounted
- * form would send them up as new rows again. Leaving the page is what
- * guarantees the next edit starts from the server's version.
+ * Two decisions make that true, and both are easy to undo by accident:
+ *
+ * **The action is dispatched from `onSubmit`, not from `<form action>`.**
+ * React resets an uncontrolled form after an action passed to the `action`
+ * prop completes — including when it completes with errors. On a form this
+ * size that is twenty inputs, a gallery and every variant row wiped because
+ * one price had a typo in it. Dispatching inside `startTransition` from a
+ * submit handler keeps `useActionState`'s pending flag and drops the reset.
+ * The cost is that the form no longer submits without JavaScript, which this
+ * one could not do anyway: the variant editor *is* JavaScript.
+ *
+ * **Nothing is held in React state that does not have to be.** Every value is
+ * an uncontrolled `defaultValue`, so a re-render after a failed save has no
+ * opportunity to overwrite what is in the box. Only two things are state,
+ * because only they change structurally: `productType`, which decides which
+ * selects the variant editor renders, and the row lists.
+ *
+ * ## Validation is the Zod schema, in both directions
+ *
+ * There is not a single `required` attribute in this form. `parseProductForm`
+ * runs here on submit — the same function, from the same module, that the
+ * Server Action runs on what arrives — and its output is a map of field name
+ * to message that goes straight into `<Form errors>`. The form marks those
+ * fields invalid, each `<FieldError />` finds its own message, focus moves to
+ * the first one, and every other value stays exactly where it was. Editing a
+ * flagged field clears its message.
+ *
+ * That is why `docs/folder-structure.md`'s note about `react-hook-form` being
+ * "the one form that should pull it in" still has not been acted on: the
+ * schema was already isomorphic, so running it in the browser cost one
+ * function call.
+ *
+ * ## It navigates away on success
+ *
+ * On create *and* on edit. Not cosmetic: after a save, rows the admin added
+ * have real database ids that this component has never seen, and a second
+ * submit from the same mounted form would send them up as new rows again.
+ * Leaving the page guarantees the next edit starts from the server's version.
  *
  * See docs/products-feature.md.
  */
-export function ProductForm({ product, categories }: ProductFormProps) {
+export function ProductForm({
+  product,
+  categories,
+  ingredients,
+}: ProductFormProps) {
   const isEdit = product !== null
   const router = useRouter()
 
@@ -89,14 +128,37 @@ export function ProductForm({ product, categories }: ProductFormProps) {
     IDLE_PRODUCT_FORM_STATE
   )
 
+  /**
+   * What the schema said here in the browser, or `null` when it has not
+   * spoken since the last dispatch.
+   *
+   * The displayed errors are **derived**, not stored: a local refusal wins
+   * while it stands, and otherwise the server's answer is read straight out
+   * of the action state. Copying `state.errors` into state with an effect
+   * would work too, and would add a render pass plus a window in which the
+   * two disagreed about the same field.
+   */
+  const [clientErrors, setClientErrors] = useState<ProductFormErrors | null>(
+    null
+  )
+
+  const errors = clientErrors ?? state.errors
+
   const [productType, setProductType] = useState<ProductType>(
     product?.productType ?? "ALCOHOL_BASED"
   )
 
-  const [rows, setRows] = useState<VariantRow[]>(() => initialRows(product))
+  const [variantRows, setVariantRows] = useState<VariantRow[]>(() =>
+    initialVariantRows(product)
+  )
+  const [ingredientRows, setIngredientRows] = useState<IngredientRow[]>(() =>
+    initialIngredientRows(product)
+  )
   const [nextKey, setNextKey] = useState(1)
 
   useEffect(() => {
+    if (state.status === "idle") return
+
     if (state.status === "success") {
       toast.success(state.message)
       router.push(ROUTES.adminProducts)
@@ -106,31 +168,50 @@ export function ProductForm({ product, categories }: ProductFormProps) {
     // Field-level problems already render under the inputs that caused them.
     // Only failures with nowhere else to appear get a toast: a permission
     // refusal, a dead database, a variant blocked by an order.
-    if (
-      state.status === "error" &&
-      Object.keys(state.fieldErrors).length === 0 &&
-      Object.keys(state.variantErrors).length === 0
-    ) {
-      toast.error(state.message)
-    }
+    if (Object.keys(state.errors).length === 0) toast.error(state.message)
+
     // `router` is stable, but listing it would still re-run this on every
     // render of the App Router's context — and re-fire the toast with it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
-  const fieldErrors = state.fieldErrors
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    // Always. Without an `action` prop the browser would otherwise navigate,
+    // and *with* one React would reset every field the moment the action
+    // returned. See the note on this component.
+    event.preventDefault()
 
-  function addRow() {
-    setRows((current) => [...current, { key: `new-${nextKey}`, variant: null }])
+    const formData = new FormData(event.currentTarget)
+    const parsed = parseProductForm(formData)
+
+    if (!parsed.success) {
+      setClientErrors(parsed.errors)
+      return
+    }
+
+    // Hand the field back to the server's answer, which is about to arrive.
+    setClientErrors(null)
+    startTransition(() => formAction(formData))
+  }
+
+  function addVariantRow() {
+    setVariantRows((current) => [
+      ...current,
+      { key: `new-${nextKey}`, variant: null },
+    ])
     setNextKey((value) => value + 1)
   }
 
-  function removeRow(key: string) {
-    setRows((current) => current.filter((row) => row.key !== key))
+  function addIngredientRow() {
+    setIngredientRows((current) => [
+      ...current,
+      { key: `ing-${nextKey}`, ingredient: null },
+    ])
+    setNextKey((value) => value + 1)
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    <Form errors={errors} onSubmit={handleSubmit}>
       {/* Empty for a new perfume — that emptiness is what tells the action to
           create rather than update. */}
       <input type="hidden" name="id" value={product?.id ?? ""} />
@@ -141,7 +222,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
       >
         <FieldGroup className="gap-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <Field>
+            <Field name="name">
               <FieldLabel htmlFor="product-name">الاسم</FieldLabel>
               <Input
                 id="product-name"
@@ -150,15 +231,11 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 maxLength={NAME_MAX}
                 placeholder="مسك الورد"
                 autoComplete="off"
-                aria-invalid={Boolean(fieldErrors.name)}
-                required
               />
-              {fieldErrors.name ? (
-                <FieldError>{fieldErrors.name}</FieldError>
-              ) : null}
+              <FieldError />
             </Field>
 
-            <Field>
+            <Field name="slug">
               <FieldLabel htmlFor="product-slug">المعرّف (الرابط)</FieldLabel>
               <Input
                 id="product-slug"
@@ -170,8 +247,6 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 spellCheck={false}
                 dir="ltr"
                 className="font-mono text-start"
-                aria-invalid={Boolean(fieldErrors.slug)}
-                required
               />
               <FieldDescription>
                 يظهر في رابط الصفحة:{" "}
@@ -180,13 +255,11 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 </code>
                 {isEdit ? " — تغييره يكسر الروابط المنشورة." : null}
               </FieldDescription>
-              {fieldErrors.slug ? (
-                <FieldError>{fieldErrors.slug}</FieldError>
-              ) : null}
+              <FieldError />
             </Field>
           </div>
 
-          <Field>
+          <Field name="description">
             <FieldLabel htmlFor="product-description">الوصف</FieldLabel>
             <Textarea
               id="product-description"
@@ -195,31 +268,23 @@ export function ProductForm({ product, categories }: ProductFormProps) {
               maxLength={DESCRIPTION_MAX}
               rows={5}
               placeholder="ورد طائفي وعنبر، بقاعدة مسكية دافئة تدوم طوال اليوم."
-              aria-invalid={Boolean(fieldErrors.description)}
-              required
             />
             <FieldDescription>
               النص الذي يقرأه الزائر على صفحة المنتج — عائلة الروائح، الثبات،
               ومناسبة الاستخدام.
             </FieldDescription>
-            {fieldErrors.description ? (
-              <FieldError>{fieldErrors.description}</FieldError>
-            ) : null}
+            <FieldError />
           </Field>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Field>
+            <Field name="categoryId">
               <FieldLabel htmlFor="product-category">الفئة</FieldLabel>
               <Select
                 name="categoryId"
                 items={categoryItems(categories)}
                 defaultValue={product?.categoryId ?? null}
               >
-                <SelectTrigger
-                  id="product-category"
-                  className="w-full"
-                  aria-invalid={Boolean(fieldErrors.categoryId)}
-                >
+                <SelectTrigger id="product-category" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -235,12 +300,10 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                   ))}
                 </SelectContent>
               </Select>
-              {fieldErrors.categoryId ? (
-                <FieldError>{fieldErrors.categoryId}</FieldError>
-              ) : null}
+              <FieldError />
             </Field>
 
-            <Field>
+            <Field name="productType">
               <FieldLabel htmlFor="product-type">النوع</FieldLabel>
               <Select
                 name="productType"
@@ -248,11 +311,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 value={productType}
                 onValueChange={(value) => setProductType(value as ProductType)}
               >
-                <SelectTrigger
-                  id="product-type"
-                  className="w-full"
-                  aria-invalid={Boolean(fieldErrors.productType)}
-                >
+                <SelectTrigger id="product-type" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -266,9 +325,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
               <FieldDescription>
                 {PRODUCT_TYPE_HINT[productType]}
               </FieldDescription>
-              {fieldErrors.productType ? (
-                <FieldError>{fieldErrors.productType}</FieldError>
-              ) : null}
+              <FieldError />
             </Field>
           </div>
 
@@ -294,11 +351,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
         title="الصور"
         description="أول صورة هي الغلاف — هي التي تظهر في قوائم المتجر والسلة."
       >
-        <ProductGalleryField
-          images={product?.images ?? []}
-          error={fieldErrors.images}
-          disabled={pending}
-        />
+        <ProductGalleryField images={product?.images ?? []} disabled={pending} />
       </SectionCard>
 
       <SectionCard
@@ -311,11 +364,30 @@ export function ProductForm({ product, categories }: ProductFormProps) {
       >
         <ProductVariantsField
           productType={productType}
-          rows={rows}
-          onAdd={addRow}
-          onRemove={removeRow}
-          errors={state.variantErrors}
-          collectionError={fieldErrors.variants}
+          rows={variantRows}
+          onAdd={addVariantRow}
+          onRemove={(key) =>
+            setVariantRows((current) =>
+              current.filter((row) => row.key !== key)
+            )
+          }
+          disabled={pending}
+        />
+      </SectionCard>
+
+      <SectionCard
+        title="المكوّنات"
+        description="ما في العطر فعلًا — الزيوت ودرجاتها والكحول. اختياري، ويظهر في قسم الجودة على صفحة المنتج."
+      >
+        <ProductIngredientsField
+          rows={ingredientRows}
+          options={ingredients}
+          onAdd={addIngredientRow}
+          onRemove={(key) =>
+            setIngredientRows((current) =>
+              current.filter((row) => row.key !== key)
+            )
+          }
           disabled={pending}
         />
       </SectionCard>
@@ -331,26 +403,36 @@ export function ProductForm({ product, categories }: ProductFormProps) {
           {isEdit ? "حفظ التعديلات" : "إضافة العطر"}
         </Button>
       </div>
-    </form>
+    </Form>
   )
 }
 
 /**
- * The rows the editor opens with.
+ * The rows the editors open with.
  *
- * Keys are the variants' own database ids, never anything random. A
+ * Keys are the rows' own database identities, never anything random. A
  * `crypto.randomUUID()` here would be generated once on the server and again
  * in the browser, and the two would disagree — a hydration mismatch on the
- * hidden `variantKey` inputs, which is exactly the field the server uses to
- * line an error message up with a row. Rows added *after* mount are safe to
- * number, because only the browser ever runs that code.
+ * hidden `variantKey` input, which is exactly the field the error map uses to
+ * line a message up with a row. Rows added *after* mount are safe to number,
+ * because only the browser ever runs that code.
  */
-function initialRows(product: ProductDetail | null): VariantRow[] {
+function initialVariantRows(product: ProductDetail | null): VariantRow[] {
   if (!product || product.variants.length === 0) {
     return [{ key: "new-0", variant: null }]
   }
 
   return product.variants.map((variant) => ({ key: variant.id, variant }))
+}
+
+/** No starting row: a perfume is sellable before its oils are written up. */
+function initialIngredientRows(product: ProductDetail | null): IngredientRow[] {
+  if (!product) return []
+
+  return product.ingredients.map((ingredient) => ({
+    key: ingredient.ingredientId,
+    ingredient,
+  }))
 }
 
 /**

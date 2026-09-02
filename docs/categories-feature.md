@@ -282,6 +282,15 @@ come back from the server and render under the fields. The cost is a round
 trip to see a message; the benefit is that the form and the action cannot
 disagree about what is valid.
 
+> **The product form does better, and this one has not caught up yet.** It
+> runs the same Zod module in the browser before dispatching, so a mistake is
+> flagged without a round trip, and it dispatches from `onSubmit` so a
+> rejected save does not clear what the admin typed — React resets a form
+> submitted through `<form action>`, which this one still uses. Six fields
+> behind a dialog that remounts on every open makes both much less painful
+> here, but neither is a difference of principle. See
+> [`products-feature.md`](./products-feature.md).
+
 ### Three FormData quirks the adapter absorbs
 
 `parseCategoryForm()` sits between the raw `FormData` and the schema because

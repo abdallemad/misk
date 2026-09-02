@@ -181,6 +181,8 @@ Examples:
 - Dialog
 - Badge
 - Select (used for size / weight / bottle style pickers)
+- Form / Field / FieldError — the error-map trio every admin form is built
+  from; see [`admin-dashboard.md`](./admin-dashboard.md)
 
 ---
 
@@ -298,11 +300,16 @@ identical rules.
 > without a second copy of them in the browser. The trade is a round trip to
 > see a message.
 >
-> The product form was predicted to be the one that pulled it in. It has two
-> pieces of `useState` and nothing else: the dependency turned out to be on
-> the form's **structure** (`productType` decides which selects exist) rather
-> than on any field's *value*, and structure is cheap to hold by hand. The
-> prediction comes true the day a form needs live cross-field validation. See
+> The product form was predicted to be the one that pulled it in. It did not
+> need to. The dependency turned out to be on the form's **structure**
+> (`productType` decides which selects exist) rather than on any field's
+> *value*, and structure is cheap to hold by hand — and the "identical rules"
+> property the library was wanted for came for free, because the Zod schema
+> reads a `FormData` and the browser has one. `parseProductForm` runs in the
+> browser on submit and again in the Server Action, from the same module.
+>
+> The prediction comes true the day a form needs validation *as you type*
+> across fields, rather than on submit. See
 > [`products-feature.md`](./products-feature.md).
 
 ---
@@ -392,6 +399,7 @@ services/
 ├── auth.service.ts        # Clerk -> User sync, role resolution — auth-callback.md
 ├── admin.service.ts       # read-only counts for the /admin overview
 ├── product.service.ts     # built — products-feature.md
+├── ingredient.service.ts  # built — the raw-material master list
 ├── category.service.ts    # built — categories-feature.md
 ├── search.service.ts
 ├── cart.service.ts
@@ -481,6 +489,13 @@ Examples:
   validates a permissive row and applies the shape rule in a `superRefine`
   that can see `productType`. See
   [`products-feature.md`](./products-feature.md)
+
+> **Schemas are isomorphic, and that is load-bearing.** Nothing in
+> `schemas/` may import from `services/`, `lib/db.ts` or anything
+> `server-only`. Keeping them pure is what lets the product form run
+> `parseProductForm` in the browser before it dispatches, and the Server
+> Action run the *same function* on what arrives — one definition of valid,
+> enforced twice, with no client copy to drift.
 - Cart Item Schema
 - Checkout Schema
 
