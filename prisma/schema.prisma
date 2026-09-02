@@ -1,0 +1,222 @@
+// ============================================================
+// Misk Perfume Catalog — Prisma Schema
+// Based on: misk_business_analysis.md
+// ============================================================
+//
+// Design notes:
+// - Each perfume is a parent Product with one or many Variants
+//   (variant-based selling rather than fixed SKUs).
+// - Two product types exist: ALCOHOL (sold by bottle size + style)
+//   and RAW_OIL / "Duhn" (sold by weight, no bottle style).
+//   Rather than splitting into two tables, Variant carries nullable
+//   fields for each type and a check is enforced at the app layer
+//   (see comment above Variant) — this keeps "one perfume, many
+//   purchasable options" on a single product page, per section 5.
+// - Ingredients are modeled as their own table so the same raw
+//   material (e.g. "Amber Oud oil, Grade A") can be reused/reported
+//   on across many products, and so the admin can update
+//   descriptions per grade/batch (section 7, point 4) independently
+//   of the product copy.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// Enums
+// ------------------------------------------------------------
+
+/// Gender/audience segments — section 3
+enum Category {
+  YOUTH
+  WOMEN
+  MEN
+}
+
+/// Two distinct product formats requiring different variant data — section 4
+enum ProductType {
+  ALCOHOL_BASED
+  RAW_OIL
+}
+
+/// Packaging tier — alcohol-based line only — section 4.1
+enum BottleStyle {
+  LUXURY
+  REGULAR
+}
+
+/// Bottle size in ml — alcohol-based line only — section 4.1
+enum BottleSize {
+  ML_30
+  ML_50
+  ML_100
+}
+
+/// Fill weight in grams — raw oil / "Duhn" line only — section 4.2
+enum OilWeight {
+  G_5
+  G_8
+  G_12
+}
+
+// ------------------------------------------------------------
+// Core catalog
+// ------------------------------------------------------------
+
+/// Parent product — one perfume, e.g. "Misk Rose" — section 5
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String      @unique
+  description String
+  category    Category
+  productType ProductType
+
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  images      ProductImage[]
+  ingredients ProductIngredient[]
+  variants    ProductVariant[]
+
+  @@index([category])
+  @@index([productType])
+}
+
+/// Image gallery — multiple photos per product — section 3 & 7
+model ProductImage {
+  id        String  @id @default(cuid())
+  url       String
+  altText   String?
+  position  Int     @default(0)
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  @@index([productId])
+}
+
+/// Raw material master list — fragrance oil grades, ethanol type, etc.
+/// Lets the "Quality & Ingredients" trust section (section 6) reuse
+/// the same material entry across many products.
+model Ingredient {
+  id          String  @id @default(cuid())
+  name        String  @unique // e.g. "Medical-Grade Ethanol", "Oud Oil - Grade A"
+  description String?
+
+  products    ProductIngredient[]
+}
+
+/// Join table: which ingredients appear in which product, in what role
+model ProductIngredient {
+  id           String     @id @default(cuid())
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId    String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  ingredientId String
+  note         String?    // e.g. "base diluent", "top note oil"
+
+  @@unique([productId, ingredientId])
+}
+
+// ------------------------------------------------------------
+// Variants (purchasable options)
+// ------------------------------------------------------------
+
+/// A single purchasable combination under a product page — section 5.
+///
+/// Population rules (enforced in application/service layer, since
+/// Prisma has no native CHECK-constraint DSL):
+///   - product.productType == ALCOHOL_BASED  ->  bottleSize + bottleStyle
+///     are required; oilWeight must be null.
+///   - product.productType == RAW_OIL        ->  oilWeight is required;
+///     bottleSize + bottleStyle must be null.
+///
+/// oilGrade is free-text on every variant since price varies by
+/// (size/weight × bottle style × oil grade) per section 4.1, and
+/// grades/batches change over time (section 7, point 4).
+model ProductVariant {
+  id          String       @id @default(cuid())
+
+  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId   String
+
+  // Alcohol-based fields
+  bottleSize  BottleSize?
+  bottleStyle BottleStyle?
+
+  // Raw oil fields
+  oilWeight   OilWeight?
+
+  // Shared
+  oilGrade    String?      // e.g. "Grade A", "Premium Batch 3"
+  sku         String       @unique
+  price       Decimal      @db.Decimal(10, 2)
+  currency    String       @default("SAR")
+  stock       Int          @default(0)
+  isActive    Boolean      @default(true)
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  orderItems  OrderItem[]
+
+  @@index([productId])
+  @@unique([productId, bottleSize, bottleStyle, oilWeight, oilGrade], name: "uniqueVariantCombination")
+}
+
+// ------------------------------------------------------------
+// Orders (minimal — supports "made-to-order" checkout flow, section 8)
+// ------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  IN_PRODUCTION
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  createdAt DateTime @default(now())
+
+  orders    Order[]
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId String
+  status     OrderStatus @default(PENDING)
+  totalPrice Decimal     @db.Decimal(10, 2)
+  currency   String      @default("SAR")
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  items      OrderItem[]
+}
+
+model OrderItem {
+  id         String         @id @default(cuid())
+  order      Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId    String
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  variantId  String
+  quantity   Int            @default(1)
+  unitPrice  Decimal        @db.Decimal(10, 2) // snapshot at time of order
+
+  @@index([orderId])
+  @@index([variantId])
+}
