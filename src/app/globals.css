@@ -1,26 +1,507 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* =========================================================================
+   MISK — مِسك — Design System
+   Warm, artisanal luxury for a self-manufactured perfume house.
+   Ivory & Musk (light) / Midnight Oud (dark), brass-gold accent.
 
+   Arabic-first, RTL by default. Two consequences run through this file:
+     · no letter-spacing on Arabic — tracking breaks the joined script, so the
+       display scale sets it to 0 and only `:lang(en)` runs get it back;
+     · looser leading than a Latin system — Arabic carries diacritics above
+       and descenders below the baseline.
+
+   Rationale for every token: docs/design-system.md
+   ========================================================================= */
+
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant ltr (&:where([dir="ltr"], [dir="ltr"] *));
+
+/* -------------------------------------------------------------------------
+   Theme-aware tokens — resolved by :root / .dark further down.
+   ------------------------------------------------------------------------- */
 @theme inline {
+  /* Typefaces ------------------------------------------------------------
+     Both brand faces cover Arabic *and* Latin, so a product name in Latin
+     inside an Arabic sentence stays in the same voice — no unicode-range
+     juggling, no second stack. */
+  --font-sans: var(--font-misk-sans), "Segoe UI", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-display: var(--font-misk-display), "Times New Roman", ui-serif, serif;
+  --font-mono: var(--font-misk-mono), ui-monospace, SFMono-Regular, monospace;
+  --font-heading: var(--font-misk-display), "Times New Roman", ui-serif, serif;
+
+  /* Surfaces & text ----------------------------------------------------- */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Brand --------------------------------------------------------------- */
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-gold-soft: var(--gold-soft);
+  --color-gold-soft-foreground: var(--gold-soft-foreground);
+  --color-oud: var(--oud);
+  --color-oud-foreground: var(--oud-foreground);
+  --color-musk: var(--musk);
+  --color-ivory: var(--ivory);
+  --color-vetiver: var(--vetiver);
+
+  /* Status — solid + soft (badge) pairs --------------------------------- */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-soft: var(--info-soft);
+  --color-info-soft-foreground: var(--info-soft-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-soft-foreground: var(--destructive-soft-foreground);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-soft-foreground: var(--neutral-soft-foreground);
+
+  /* Catalog semantics --------------------------------------------------- */
+  --color-category-youth: var(--category-youth);
+  --color-category-women: var(--category-women);
+  --color-category-men: var(--category-men);
+  --color-type-alcohol: var(--type-alcohol);
+  --color-type-oil: var(--type-oil);
+
+  /* Data viz (admin dashboard) ------------------------------------------ */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Admin sidebar ------------------------------------------------------- */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Corner radius ------------------------------------------------------- */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* -------------------------------------------------------------------------
+   Static tokens — identical in both themes.
+   ------------------------------------------------------------------------- */
+@theme {
+  /* Display scale — Amiri, for editorial headings.
+     Letter-spacing is 0 everywhere: Naskh is a joined script and tracking
+     pulls the connections apart. Leading is looser than a Latin scale would
+     be, to clear the diacritics. Amiri ships 400 and 700 only — the scale
+     sits at 400 and headings that need weight ask for `font-bold`. */
+  --text-display-xs: 1.3125rem;
+  --text-display-xs--line-height: 1.6;
+  --text-display-xs--letter-spacing: 0;
+  --text-display-xs--font-weight: 400;
+
+  --text-display-sm: 1.625rem;
+  --text-display-sm--line-height: 1.5;
+  --text-display-sm--letter-spacing: 0;
+  --text-display-sm--font-weight: 400;
+
+  --text-display-md: 2.125rem;
+  --text-display-md--line-height: 1.4;
+  --text-display-md--letter-spacing: 0;
+  --text-display-md--font-weight: 400;
+
+  --text-display-lg: 2.75rem;
+  --text-display-lg--line-height: 1.3;
+  --text-display-lg--letter-spacing: 0;
+  --text-display-lg--font-weight: 400;
+
+  --text-display-xl: 3.75rem;
+  --text-display-xl--line-height: 1.25;
+  --text-display-xl--letter-spacing: 0;
+  --text-display-xl--font-weight: 400;
+
+  --text-display-2xl: 5rem;
+  --text-display-2xl--line-height: 1.18;
+  --text-display-2xl--letter-spacing: 0;
+  --text-display-2xl--font-weight: 400;
+
+  /* Micro-label above section headings and on variant pickers.
+     A notch larger than a Latin eyebrow would be — Arabic loses its
+     dots and diacritics below ~12px. */
+  --text-eyebrow: 0.75rem;
+  --text-eyebrow--line-height: 1.5;
+  --text-eyebrow--letter-spacing: 0;
+  --text-eyebrow--font-weight: 500;
+
+  /* Interface scale — leading opened up across the board for Arabic. */
+  --text-xs--line-height: 1.6;
+  --text-sm--line-height: 1.7;
+  --text-base--line-height: 1.8;
+  --text-lg--line-height: 1.8;
+  --text-xl--line-height: 1.7;
+
+  /* Applied only to Latin runs — see `.eyebrow` and `[lang="en"]` below. */
+  --tracking-eyebrow: 0.18em;
+
+  /* Warm-tinted elevation. Neutral black shadows go grey on ivory. */
+  --shadow-2xs: 0 1px 2px 0 oklch(0.28 0.03 56 / 0.05);
+  --shadow-xs: 0 1px 3px 0 oklch(0.28 0.03 56 / 0.07);
+  --shadow-sm:
+    0 1px 2px -1px oklch(0.28 0.03 56 / 0.09),
+    0 2px 6px -1px oklch(0.28 0.03 56 / 0.07);
+  --shadow-md:
+    0 2px 4px -2px oklch(0.28 0.03 56 / 0.09),
+    0 6px 14px -3px oklch(0.28 0.03 56 / 0.1);
+  --shadow-lg:
+    0 4px 8px -4px oklch(0.28 0.03 56 / 0.1),
+    0 12px 28px -6px oklch(0.28 0.03 56 / 0.12);
+  --shadow-xl:
+    0 8px 16px -8px oklch(0.28 0.03 56 / 0.12),
+    0 24px 48px -12px oklch(0.28 0.03 56 / 0.16);
+  --shadow-2xl: 0 32px 64px -16px oklch(0.28 0.03 56 / 0.24);
+  /* Product imagery: a low, wide pool of shadow, like a bottle on a shelf */
+  --shadow-flacon: 0 24px 40px -28px oklch(0.28 0.05 56 / 0.55);
+
+  /* Motion — slow in, settled out. Perfume, not software. */
+  --ease-luxe: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Layout rails */
+  --container-page: 80rem;
+  --container-prose: 42rem;
+}
+
+/* -------------------------------------------------------------------------
+   Ivory & Musk — light theme (default)
+   ------------------------------------------------------------------------- */
+:root {
+  --radius: 0.375rem;
+
+  --background: oklch(0.982 0.006 84);
+  --foreground: oklch(0.248 0.019 56);
+  --card: oklch(0.995 0.003 84);
+  --card-foreground: oklch(0.248 0.019 56);
+  --popover: oklch(0.997 0.0025 84);
+  --popover-foreground: oklch(0.248 0.019 56);
+
+  --primary: oklch(0.29 0.029 52);
+  --primary-foreground: oklch(0.98 0.011 86);
+  --secondary: oklch(0.942 0.013 82);
+  --secondary-foreground: oklch(0.305 0.027 55);
+  --muted: oklch(0.952 0.009 84);
+  --muted-foreground: oklch(0.5 0.02 58);
+  --accent: oklch(0.933 0.033 82);
+  --accent-foreground: oklch(0.32 0.048 62);
+
+  --destructive: oklch(0.545 0.192 27.4);
+  --destructive-foreground: oklch(0.985 0.012 27);
+
+  --border: oklch(0.896 0.013 80);
+  --input: oklch(0.883 0.014 80);
+  --ring: oklch(0.69 0.118 72);
+
+  /* Brand */
+  --gold: oklch(0.725 0.129 72);
+  --gold-foreground: oklch(0.22 0.038 58);
+  --gold-soft: oklch(0.945 0.038 84);
+  --gold-soft-foreground: oklch(0.42 0.078 62);
+  --oud: oklch(0.345 0.064 30);
+  --oud-foreground: oklch(0.97 0.014 60);
+  --musk: oklch(0.248 0.019 56);
+  --ivory: oklch(0.982 0.006 84);
+  --vetiver: oklch(0.53 0.062 148);
+
+  /* Status */
+  --success: oklch(0.53 0.09 150);
+  --success-foreground: oklch(0.985 0.01 150);
+  --success-soft: oklch(0.945 0.032 150);
+  --success-soft-foreground: oklch(0.4 0.075 150);
+  --warning: oklch(0.72 0.14 70);
+  --warning-foreground: oklch(0.24 0.04 60);
+  --warning-soft: oklch(0.948 0.045 82);
+  --warning-soft-foreground: oklch(0.43 0.085 62);
+  --info: oklch(0.55 0.075 245);
+  --info-foreground: oklch(0.985 0.008 245);
+  --info-soft: oklch(0.945 0.025 245);
+  --info-soft-foreground: oklch(0.42 0.07 245);
+  --destructive-soft: oklch(0.947 0.03 25);
+  --destructive-soft-foreground: oklch(0.45 0.14 27);
+  --neutral-soft: oklch(0.938 0.01 82);
+  --neutral-soft-foreground: oklch(0.44 0.018 58);
+
+  /* Catalog semantics */
+  --category-youth: oklch(0.66 0.108 108);
+  --category-women: oklch(0.63 0.115 12);
+  --category-men: oklch(0.46 0.072 42);
+  --type-alcohol: oklch(0.6 0.058 235);
+  --type-oil: oklch(0.725 0.129 72);
+
+  /* Data viz */
+  --chart-1: oklch(0.725 0.129 72);
+  --chart-2: oklch(0.45 0.09 32);
+  --chart-3: oklch(0.58 0.07 150);
+  --chart-4: oklch(0.66 0.1 14);
+  --chart-5: oklch(0.38 0.03 58);
+
+  /* Admin sidebar — parchment rail */
+  --sidebar: oklch(0.964 0.009 84);
+  --sidebar-foreground: oklch(0.29 0.021 56);
+  --sidebar-primary: oklch(0.29 0.029 52);
+  --sidebar-primary-foreground: oklch(0.98 0.011 86);
+  --sidebar-accent: oklch(0.925 0.028 82);
+  --sidebar-accent-foreground: oklch(0.32 0.048 62);
+  --sidebar-border: oklch(0.892 0.013 80);
+  --sidebar-ring: oklch(0.69 0.118 72);
+}
+
+/* -------------------------------------------------------------------------
+   Midnight Oud — dark theme
+   ------------------------------------------------------------------------- */
+.dark {
+  --background: oklch(0.178 0.013 52);
+  --foreground: oklch(0.942 0.012 84);
+  --card: oklch(0.218 0.015 52);
+  --card-foreground: oklch(0.942 0.012 84);
+  --popover: oklch(0.228 0.0155 52);
+  --popover-foreground: oklch(0.942 0.012 84);
+
+  --primary: oklch(0.92 0.018 84);
+  --primary-foreground: oklch(0.22 0.025 54);
+  --secondary: oklch(0.275 0.018 54);
+  --secondary-foreground: oklch(0.942 0.012 84);
+  --muted: oklch(0.27 0.016 54);
+  --muted-foreground: oklch(0.715 0.02 78);
+  --accent: oklch(0.3 0.032 62);
+  --accent-foreground: oklch(0.93 0.03 82);
+
+  --destructive: oklch(0.695 0.178 24);
+  --destructive-foreground: oklch(0.17 0.03 24);
+
+  --border: oklch(0.95 0.03 84 / 12%);
+  --input: oklch(0.95 0.03 84 / 16%);
+  --ring: oklch(0.75 0.12 74);
+
+  /* Brand */
+  --gold: oklch(0.79 0.125 76);
+  --gold-foreground: oklch(0.2 0.03 58);
+  --gold-soft: oklch(0.34 0.055 68);
+  --gold-soft-foreground: oklch(0.88 0.075 82);
+  --oud: oklch(0.46 0.08 28);
+  --oud-foreground: oklch(0.97 0.014 60);
+  --musk: oklch(0.942 0.012 84);
+  --ivory: oklch(0.982 0.006 84);
+  --vetiver: oklch(0.68 0.075 148);
+
+  /* Status */
+  --success: oklch(0.7 0.11 152);
+  --success-foreground: oklch(0.18 0.03 152);
+  --success-soft: oklch(0.31 0.05 152);
+  --success-soft-foreground: oklch(0.85 0.09 152);
+  --warning: oklch(0.79 0.13 74);
+  --warning-foreground: oklch(0.2 0.03 60);
+  --warning-soft: oklch(0.34 0.055 70);
+  --warning-soft-foreground: oklch(0.88 0.075 82);
+  --info: oklch(0.7 0.075 245);
+  --info-foreground: oklch(0.18 0.03 245);
+  --info-soft: oklch(0.31 0.04 245);
+  --info-soft-foreground: oklch(0.85 0.06 245);
+  --destructive-soft: oklch(0.32 0.075 25);
+  --destructive-soft-foreground: oklch(0.86 0.1 25);
+  --neutral-soft: oklch(0.29 0.016 60);
+  --neutral-soft-foreground: oklch(0.82 0.018 80);
+
+  /* Catalog semantics */
+  --category-youth: oklch(0.76 0.115 108);
+  --category-women: oklch(0.73 0.105 12);
+  --category-men: oklch(0.66 0.075 46);
+  --type-alcohol: oklch(0.72 0.06 235);
+  --type-oil: oklch(0.79 0.125 76);
+
+  /* Data viz */
+  --chart-1: oklch(0.79 0.125 76);
+  --chart-2: oklch(0.62 0.1 32);
+  --chart-3: oklch(0.7 0.08 150);
+  --chart-4: oklch(0.74 0.1 14);
+  --chart-5: oklch(0.72 0.025 78);
+
+  /* Admin sidebar — deep musk rail */
+  --sidebar: oklch(0.208 0.015 52);
+  --sidebar-foreground: oklch(0.93 0.012 84);
+  --sidebar-primary: oklch(0.79 0.125 76);
+  --sidebar-primary-foreground: oklch(0.2 0.03 58);
+  --sidebar-accent: oklch(0.285 0.024 58);
+  --sidebar-accent-foreground: oklch(0.93 0.03 82);
+  --sidebar-border: oklch(0.95 0.03 84 / 10%);
+  --sidebar-ring: oklch(0.75 0.12 74);
+}
+
+/* -------------------------------------------------------------------------
+   Base layer
+   ------------------------------------------------------------------------- */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Headings default to the display serif. Data-dense surfaces (admin
+     tables, dashboard tiles) opt back out with `font-sans`. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display text-balance;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+
+  /* A Latin run inside Arabic copy — a perfume name, "EDP", "Eau de Parfum".
+     Isolating it keeps the bidi algorithm from dragging adjacent punctuation
+     to the wrong end of the phrase. */
+  [lang="en"] {
+    unicode-bidi: isolate;
+  }
+
+  /* Prices, stock counts, quantities. Tabular figures stop the number
+     jittering as it updates; isolation stops it disturbing the Arabic around
+     it. Deliberately *not* `direction: ltr` — `Intl.NumberFormat("ar-EG")`
+     wraps its output in RLM marks that already place «ج.م.» correctly, and
+     forcing a direction here would fight them. */
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    unicode-bidi: isolate;
+  }
+
+  /* Composite Latin/technical strings: an order number next to a size,
+     "MSK-2481-0093 · 100ml". Without a forced direction the neutral "·"
+     between two Latin runs resolves RTL and flips the two halves. */
+  [data-ltr] {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  ::selection {
+    background-color: var(--gold-soft);
+    color: var(--gold-soft-foreground);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* -------------------------------------------------------------------------
+   Brand primitives
+   ------------------------------------------------------------------------- */
+@layer components {
+  /* Micro-label above a section heading or a variant group: «اختر الحجم».
+     Arabic gets no tracking — it would break the joins — so the label earns
+     its separation from size and colour instead. A Latin label marked
+     `lang="en"` gets the tracked-out treatment back. */
+  .eyebrow {
+    @apply font-sans text-eyebrow text-muted-foreground uppercase;
+    letter-spacing: 0;
+  }
+
+  .eyebrow:lang(en) {
+    letter-spacing: var(--tracking-eyebrow);
+  }
+
+  /* Hairline that fades out from a gold centre — section separator */
+  .rule-gold {
+    height: 1px;
+    border: 0;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--gold) 20%,
+      var(--gold) 80%,
+      transparent
+    );
+    opacity: 0.5;
+  }
+
+  /* Ambient warmth behind hero / feature sections. The off-centre oud pool
+     sits on the trailing side of the text, so it mirrors with the direction. */
+  .brand-sheen {
+    background-image:
+      radial-gradient(
+        60% 80% at 50% 0%,
+        color-mix(in oklch, var(--gold) 16%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 60% at 15% 100%,
+        color-mix(in oklch, var(--oud) 10%, transparent),
+        transparent 70%
+      );
+  }
+
+  .brand-sheen:where([dir="ltr"], [dir="ltr"] *) {
+    background-image:
+      radial-gradient(
+        60% 80% at 50% 0%,
+        color-mix(in oklch, var(--gold) 16%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 60% at 85% 100%,
+        color-mix(in oklch, var(--oud) 10%, transparent),
+        transparent 70%
+      );
+  }
+
+  /* A warm plinth for bottle photography */
+  .flacon-plate {
+    @apply bg-secondary;
+    background-image: radial-gradient(
+      70% 70% at 50% 30%,
+      color-mix(in oklch, var(--gold) 10%, transparent),
+      transparent 75%
+    );
+  }
 }
