@@ -31,13 +31,6 @@ datasource db {
 // Enums
 // ------------------------------------------------------------
 
-/// Gender/audience segments — section 3
-enum Category {
-  YOUTH
-  WOMEN
-  MEN
-}
-
 /// Two distinct product formats requiring different variant data — section 4
 enum ProductType {
   ALCOHOL_BASED
@@ -68,13 +61,54 @@ enum OilWeight {
 // Core catalog
 // ------------------------------------------------------------
 
+/// Audience segment — "شبابي" / "نسائي" / "رجالي" — section 3.
+///
+/// A table rather than an enum, because the admin console creates, renames
+/// and retires segments at runtime (see docs/categories-feature.md). An enum
+/// would put every such change behind a migration and a deploy.
+///
+/// `slug` is the URL segment for `/shop/[category]` and the key the design
+/// system's `CATEGORY_ACCENT` map is keyed by, so it is Latin, lowercase and
+/// immutable in spirit: renaming `name` is free, changing `slug` breaks
+/// every link that has already been shared.
+model Category {
+  id          String   @id @default(cuid())
+  /// Arabic display label — "شبابي".
+  name        String   @unique
+  /// URL segment — "youth". Latin lowercase, digits and hyphens only.
+  slug        String   @unique
+  /// One line of scent copy — "برغموت وحمضيات، نفَس منعش".
+  description String?
+  /// Public path under `/uploads`, written by `lib/uploads.ts`. Nullable
+  /// because a segment is useful before anyone has photographed it.
+  imageUrl    String?
+  /// Hides the segment from the storefront without deleting it — the
+  /// reversible alternative to a delete that `onDelete: Restrict` forbids.
+  isActive    Boolean  @default(true)
+  /// Manual sort order for the storefront's category nav. Ties break by name.
+  position    Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products    Product[]
+
+  @@index([isActive, position])
+}
+
 /// Parent product — one perfume, e.g. "Misk Rose" — section 5
 model Product {
   id          String      @id @default(cuid())
   name        String
   slug        String      @unique
   description String
-  category    Category
+
+  /// `Restrict`, not `Cascade`: deleting a segment must never take a
+  /// shelf of perfumes with it. The service turns the resulting foreign-key
+  /// error into "retire it instead" — see category.service.ts.
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  categoryId  String
+
   productType ProductType
 
   isActive    Boolean     @default(true)
@@ -85,7 +119,7 @@ model Product {
   ingredients ProductIngredient[]
   variants    ProductVariant[]
 
-  @@index([category])
+  @@index([categoryId])
   @@index([productType])
 }
 

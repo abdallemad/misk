@@ -124,14 +124,31 @@ export const STOCK_LABEL: Record<StockLevel, string> = {
  * Youth / Women / Men each carry a hue drawn from the scent family that
  * defines the line. Used as a hairline, a dot or a nav underline — never as
  * a background fill, which would fight the ivory ground.
+ *
+ * **Categories are database rows now**, not an enum (see
+ * docs/categories-feature.md), so an admin can create a fourth segment this
+ * map has never heard of. That makes this a map of *known* slugs rather than
+ * an exhaustive one — always read it through `categoryAccent()` below, which
+ * has an answer for a slug that is not here. The three keys survive because
+ * the brand's founding segments are designed, not generated; a new segment
+ * gets the neutral accent until someone draws it one.
+ *
+ * `label` and `note` are the seed copy for those three. Once the row exists,
+ * the *row* is the source of truth for its name and description — this is
+ * only where the colour lives.
  * ---------------------------------------------------------------------- */
 
 export type CategorySlug = "youth" | "women" | "men"
 
-export const CATEGORY_ACCENT: Record<
-  CategorySlug,
-  { label: string; note: string; text: string; bg: string; border: string }
-> = {
+export type CategoryAccent = {
+  label: string
+  note: string
+  text: string
+  bg: string
+  border: string
+}
+
+export const CATEGORY_ACCENT: Record<CategorySlug, CategoryAccent> = {
   youth: {
     label: "شبابي",
     note: "برغموت وحمضيات، نفَس منعش",
@@ -153,6 +170,33 @@ export const CATEGORY_ACCENT: Record<
     bg: "bg-category-men",
     border: "border-category-men",
   },
+}
+
+/**
+ * What an admin-created segment looks like until it is given a hue of its
+ * own — deliberately the neutral ink rather than a colour picked at random,
+ * so an unstyled segment reads as "no accent yet" and not as a fourth brand
+ * colour nobody chose.
+ */
+const NEUTRAL_CATEGORY_ACCENT: CategoryAccent = {
+  label: "",
+  note: "",
+  text: "text-muted-foreground",
+  bg: "bg-muted",
+  border: "border-border",
+}
+
+/**
+ * The accent for a category slug, for any slug.
+ *
+ * Never index `CATEGORY_ACCENT` directly with a value that came out of the
+ * database: TypeScript will type the result as present, and a segment the
+ * admin invented would hand `undefined` to a `className`, which renders as
+ * the literal string "undefined" in the class list rather than failing
+ * loudly.
+ */
+export function categoryAccent(slug: string): CategoryAccent {
+  return CATEGORY_ACCENT[slug as CategorySlug] ?? NEUTRAL_CATEGORY_ACCENT
 }
 
 /* -------------------------------------------------------------------------

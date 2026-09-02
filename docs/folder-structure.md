@@ -283,6 +283,16 @@ State is managed by **react-hook-form**, validated by the entity's Zod schema
 through `standardSchemaResolver`, so the form and the Server Action enforce
 identical rules.
 
+> **Not yet installed either.** `react-hook-form` is not a dependency. The
+> category form is uncontrolled — plain `defaultValue` inputs read through
+> the browser's own `FormData`, with `useActionState` for the pending and
+> error states — and its Zod schema runs only on the server, which keeps the
+> "identical rules" property above without a second copy of them in the
+> browser. The trade is a round trip to see a message. A form with dependent
+> fields or live cross-field validation (the product form, with its
+> type-dependent variant rows) is the one that should pull it in. See
+> [`categories-feature.md`](./categories-feature.md).
+
 ---
 
 ### layout/
@@ -306,6 +316,9 @@ Admin dashboard components, organised by feature rather than by type.
 admin/
 │
 ├── layout/       # sidebar, header, mobile nav, breadcrumbs, user menu
+│
+├── categories/   # built — table + form dialog + delete dialog
+│                 #   categories-feature.md
 │
 ├── products/     # variant-collection editor, gallery uploader
 │
@@ -336,7 +349,7 @@ actions/
 │
 ├── auth/
 ├── product/       # includes createVariant / updateVariant
-├── category/
+├── category/      # built — save-category.ts, delete-category.ts
 ├── search/
 ├── cart/
 └── order/
@@ -364,7 +377,7 @@ services/
 ├── auth.service.ts        # Clerk -> User sync, role resolution — auth-callback.md
 ├── admin.service.ts       # read-only counts for the /admin overview
 ├── product.service.ts     # variant pricing, stock rules, ingredients
-├── category.service.ts
+├── category.service.ts    # built — categories-feature.md
 ├── search.service.ts
 ├── cart.service.ts
 ├── order.service.ts
@@ -409,6 +422,16 @@ hooks/
 └── use-orders.ts
 ```
 
+> **Not yet installed.** No feature has needed this layer so far, so
+> `@tanstack/react-query` is not a dependency and the root layout has no
+> `QueryClientProvider`. The categories console deliberately skips it: its
+> table is server-rendered and a mutation calls `revalidatePath`, so a client
+> cache would only be a second copy of the same data to keep in step. See the
+> reasoning in [`categories-feature.md`](./categories-feature.md) — it is a
+> judgement about that feature, not a repeal of the rule. The first screen
+> with genuine client state (drag-to-reorder, client-side filtering,
+> optimistic updates) is the one that should add it.
+
 ### Responsibilities
 
 - Queries
@@ -424,6 +447,12 @@ UI components should consume hooks instead of calling Server Actions directly.
 # schemas/
 
 Zod validation schemas.
+
+```text
+schemas/
+│
+└── category.schema.ts   # built — rules, FormData adapter, form-state type
+```
 
 Examples:
 
@@ -447,6 +476,7 @@ Application libraries and shared clients.
 lib/
 │
 ├── db.ts        # the Prisma client — import as `import { db } from "@/lib/db"`
+├── uploads.ts   # image storage under public/uploads — categories-feature.md
 └── utils.ts     # `cn()`
 ```
 
@@ -481,7 +511,10 @@ prisma/
 
 Core models (see [`erd.md`](./erd.md) for the full diagram):
 
-- `Category` — Youth / Women / Men
+- `Category` — Youth / Women / Men, plus whatever the admin adds. A table,
+  not an enum, and the admin CRUD for it is
+  [`categories-feature.md`](./categories-feature.md). Carries `slug` (the
+  `/shop/[category]` segment), `imageUrl`, `isActive` and `position`.
 - `Product` — name, slug, description, ingredients, images[], type
   (`ALCOHOL` | `RAW_OIL`), categoryId, isActive
 - `ProductVariant` — productId, size (`ML_30` | `ML_50` | `ML_100`, nullable),
@@ -538,6 +571,8 @@ constants/
 │
 ├── routes.ts          # every path, plus `safeRedirect` / `authCallbackUrl`
 ├── admin-nav.ts       # the /admin sidebar as data — admin-dashboard.md
+├── uploads.ts         # accepted image types + size cap, shared with the
+│                      #   client because lib/uploads.ts is server-only
 └── design-system.ts   # tones, order status, stock, category + type accents
 ```
 
