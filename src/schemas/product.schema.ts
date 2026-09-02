@@ -137,11 +137,21 @@ const variantSchema = z.object({
     .min(1, "السعر مطلوب.")
     .regex(PRICE_PATTERN, "سعر غير صالح — رقم بمنزلتين عشريتين كحد أقصى.")
     .refine((value) => Number(value) > 0, "السعر يجب أن يكون أكبر من صفر."),
-  stock: z.coerce
-    .number({ error: "المخزون يجب أن يكون رقمًا." })
-    .int("المخزون يجب أن يكون رقمًا صحيحًا.")
-    .min(0, "المخزون لا يكون سالبًا.")
-    .max(MAX_STOCK, `المخزون كبير — ${MAX_STOCK} كحد أقصى.`),
+  // A string with a pattern, not `z.coerce.number()`. `Number("")` is `0`,
+  // so a coerced empty box would save "out of stock" silently instead of
+  // saying the field is required — and `Number(" 12 ")` is 12 while
+  // `Number("12ml")` is NaN, two different kinds of wrong from one input.
+  // Same treatment as `price`, and for the same reason.
+  stock: z
+    .string()
+    .trim()
+    .min(1, "المخزون مطلوب — اكتب 0 إن كان غير متوفر.")
+    .regex(/^\d{1,6}$/, "المخزون يجب أن يكون رقمًا صحيحًا غير سالب.")
+    .transform(Number)
+    .refine(
+      (value) => value <= MAX_STOCK,
+      `المخزون كبير — ${MAX_STOCK} كحد أقصى.`
+    ),
   isActive: z.boolean(),
 })
 

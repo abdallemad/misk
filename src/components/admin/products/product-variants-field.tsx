@@ -28,7 +28,7 @@ import {
   OIL_WEIGHTS,
   OIL_WEIGHT_LABEL,
 } from "@/constants/catalog"
-import { OIL_GRADE_MAX, type ProductVariantErrors } from "@/schemas/product.schema"
+import { OIL_GRADE_MAX, variantFieldName } from "@/schemas/product.schema"
 import type { ProductVariantRow } from "@/services/product.service"
 
 /**
@@ -36,9 +36,10 @@ import type { ProductVariantRow } from "@/services/product.service"
  * was seeded from (`null` for a row the admin just added).
  *
  * The values themselves are **not** held in state. Every input is an
- * uncontrolled `defaultValue`, exactly as in the category form, and the
- * browser's own `FormData` is what the action reads. Only the *set of rows*
- * is state, because only that changes structurally.
+ * uncontrolled `defaultValue`, and the browser's own `FormData` is what both
+ * the client-side parse and the action read. Only the *set of rows* is state,
+ * because only that changes structurally — which is also why a failed save
+ * leaves every box exactly as the admin typed it.
  */
 export type VariantRow = {
   key: string
@@ -51,10 +52,6 @@ type ProductVariantsFieldProps = {
   rows: VariantRow[]
   onAdd: () => void
   onRemove: (key: string) => void
-  /** Per-row messages from the server, keyed by row key. */
-  errors: ProductVariantErrors
-  /** A problem with the collection rather than a row — "add at least one". */
-  collectionError?: string
   disabled?: boolean
 }
 
@@ -97,6 +94,15 @@ const WEIGHT_ITEMS = [
  * of the branch, so React keeps them mounted and the admin does not retype a
  * price because they picked the wrong type first.
  *
+ * **No `required`, no `min`, no `step`.** Every rule about these fields lives
+ * in `schemas/product.schema.ts`, which runs on submit and again on the
+ * server. HTML constraint attributes would be a second, weaker copy of those
+ * rules — they cannot say "two decimal places at most" or "this combination
+ * already exists", they show an unstyleable bubble in the browser's language,
+ * and they stop the submit before the schema ever gets to give a better
+ * answer. Each `<Field name>` below matches the name of its input, which is
+ * what lets `<FieldError />` find its own message with no props.
+ *
  * **Removal is blocked, not attempted, when a variant has been ordered.**
  * `OrderItem` points at it with `onDelete: Restrict`, so the server refuses
  * either way; disabling the button here is only about not offering one that
@@ -108,8 +114,6 @@ export function ProductVariantsField({
   rows,
   onAdd,
   onRemove,
-  errors,
-  collectionError,
   disabled,
 }: ProductVariantsFieldProps) {
   const alcohol = productType === "ALCOHOL_BASED"
@@ -119,7 +123,6 @@ export function ProductVariantsField({
       <ul className="flex flex-col gap-3">
         {rows.map((row, index) => {
           const { key, variant } = row
-          const rowErrors = errors[key] ?? {}
           const ordered = (variant?.orderItemCount ?? 0) > 0
 
           return (
@@ -132,15 +135,13 @@ export function ProductVariantsField({
               <input type="hidden" name="variantKey" value={key} />
               <input
                 type="hidden"
-                name={`v.${key}.id`}
+                name={variantFieldName(key, "id")}
                 value={variant?.id ?? ""}
               />
 
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-sm font-medium">
-                    الخيار {index + 1}
-                  </span>
+                  <span className="text-sm font-medium">الخيار {index + 1}</span>
                   {variant ? (
                     <code
                       className="truncate font-mono text-xs text-muted-foreground"
@@ -154,7 +155,7 @@ export function ProductVariantsField({
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Switch
-                      name={`v.${key}.isActive`}
+                      name={variantFieldName(key, "isActive")}
                       defaultChecked={variant?.isActive ?? true}
                       disabled={disabled}
                     />
@@ -199,19 +200,15 @@ export function ProductVariantsField({
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {alcohol ? (
                   <>
-                    <Field>
+                    <Field name={variantFieldName(key, "bottleSize")}>
                       <FieldLabel htmlFor={`${key}-size`}>الحجم</FieldLabel>
                       <Select
-                        name={`v.${key}.bottleSize`}
+                        name={variantFieldName(key, "bottleSize")}
                         items={SIZE_ITEMS}
                         defaultValue={variant?.bottleSize ?? null}
                         disabled={disabled}
                       >
-                        <SelectTrigger
-                          id={`${key}-size`}
-                          className="w-full"
-                          aria-invalid={Boolean(rowErrors.bottleSize)}
-                        >
+                        <SelectTrigger id={`${key}-size`} className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -222,24 +219,18 @@ export function ProductVariantsField({
                           ))}
                         </SelectContent>
                       </Select>
-                      {rowErrors.bottleSize ? (
-                        <FieldError>{rowErrors.bottleSize}</FieldError>
-                      ) : null}
+                      <FieldError />
                     </Field>
 
-                    <Field>
+                    <Field name={variantFieldName(key, "bottleStyle")}>
                       <FieldLabel htmlFor={`${key}-style`}>العبوة</FieldLabel>
                       <Select
-                        name={`v.${key}.bottleStyle`}
+                        name={variantFieldName(key, "bottleStyle")}
                         items={STYLE_ITEMS}
                         defaultValue={variant?.bottleStyle ?? null}
                         disabled={disabled}
                       >
-                        <SelectTrigger
-                          id={`${key}-style`}
-                          className="w-full"
-                          aria-invalid={Boolean(rowErrors.bottleStyle)}
-                        >
+                        <SelectTrigger id={`${key}-style`} className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -250,25 +241,19 @@ export function ProductVariantsField({
                           ))}
                         </SelectContent>
                       </Select>
-                      {rowErrors.bottleStyle ? (
-                        <FieldError>{rowErrors.bottleStyle}</FieldError>
-                      ) : null}
+                      <FieldError />
                     </Field>
                   </>
                 ) : (
-                  <Field>
+                  <Field name={variantFieldName(key, "oilWeight")}>
                     <FieldLabel htmlFor={`${key}-weight`}>الوزن</FieldLabel>
                     <Select
-                      name={`v.${key}.oilWeight`}
+                      name={variantFieldName(key, "oilWeight")}
                       items={WEIGHT_ITEMS}
                       defaultValue={variant?.oilWeight ?? null}
                       disabled={disabled}
                     >
-                      <SelectTrigger
-                        id={`${key}-weight`}
-                        className="w-full"
-                        aria-invalid={Boolean(rowErrors.oilWeight)}
-                      >
+                      <SelectTrigger id={`${key}-weight`} className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -279,38 +264,33 @@ export function ProductVariantsField({
                         ))}
                       </SelectContent>
                     </Select>
-                    {rowErrors.oilWeight ? (
-                      <FieldError>{rowErrors.oilWeight}</FieldError>
-                    ) : null}
+                    <FieldError />
                   </Field>
                 )}
 
-                <Field>
+                <Field name={variantFieldName(key, "oilGrade")}>
                   <FieldLabel htmlFor={`${key}-grade`}>الدرجة</FieldLabel>
                   <Input
                     id={`${key}-grade`}
-                    name={`v.${key}.oilGrade`}
+                    name={variantFieldName(key, "oilGrade")}
                     defaultValue={variant?.oilGrade ?? ""}
                     maxLength={OIL_GRADE_MAX}
                     placeholder="Grade A"
                     autoComplete="off"
                     disabled={disabled}
-                    aria-invalid={Boolean(rowErrors.oilGrade)}
                   />
-                  {rowErrors.oilGrade ? (
-                    <FieldError>{rowErrors.oilGrade}</FieldError>
-                  ) : null}
+                  <FieldError />
                 </Field>
 
-                <Field>
+                <Field name={variantFieldName(key, "price")}>
                   <FieldLabel htmlFor={`${key}-price`}>السعر</FieldLabel>
-                  {/* `type="text"` with a numeric keypad, not
-                      `type="number"`: a number input silently discards what
-                      it cannot parse, so a stray character turns into an
-                      empty price rather than the message the schema wrote. */}
+                  {/* `type="text"` with a numeric keypad, not `type="number"`:
+                      a number input silently discards what it cannot parse, so
+                      a stray character would arrive as an empty price rather
+                      than as the message the schema wrote for it. */}
                   <Input
                     id={`${key}-price`}
-                    name={`v.${key}.price`}
+                    name={variantFieldName(key, "price")}
                     defaultValue={variant?.price ?? ""}
                     inputMode="decimal"
                     placeholder="0.00"
@@ -318,37 +298,33 @@ export function ProductVariantsField({
                     dir="ltr"
                     className="text-start"
                     disabled={disabled}
-                    aria-invalid={Boolean(rowErrors.price)}
-                    required
                   />
-                  {rowErrors.price ? (
-                    <FieldError>{rowErrors.price}</FieldError>
-                  ) : null}
+                  <FieldError />
                 </Field>
 
-                <Field>
+                <Field name={variantFieldName(key, "stock")}>
                   <FieldLabel htmlFor={`${key}-stock`}>المخزون</FieldLabel>
                   <Input
                     id={`${key}-stock`}
-                    name={`v.${key}.stock`}
-                    type="number"
+                    name={variantFieldName(key, "stock")}
                     inputMode="numeric"
-                    min={0}
-                    step={1}
                     defaultValue={variant?.stock ?? 0}
+                    autoComplete="off"
                     dir="ltr"
                     className="text-start"
                     disabled={disabled}
-                    aria-invalid={Boolean(rowErrors.stock)}
-                    required
                   />
-                  {rowErrors.stock ? (
-                    <FieldError>{rowErrors.stock}</FieldError>
-                  ) : null}
+                  <FieldError />
                 </Field>
               </div>
 
-              {rowErrors.row ? <FieldError>{rowErrors.row}</FieldError> : null}
+              {/* A field with a name and no control: it has no value of its
+                  own, it exists so the row's own problems — a duplicate, a
+                  shape that no longer matches the type — have somewhere to be
+                  said. */}
+              <Field name={variantFieldName(key, "row")}>
+                <FieldError />
+              </Field>
             </li>
           )
         })}
@@ -372,7 +348,10 @@ export function ProductVariantsField({
             : "الدهن يُباع بالوزن فقط. لكل وزن سعرٌ ومخزونٌ مستقل."}
         </FieldDescription>
 
-        {collectionError ? <FieldError>{collectionError}</FieldError> : null}
+        {/* The collection's own error — "add at least one option". */}
+        <Field name="variants">
+          <FieldError />
+        </Field>
       </div>
     </div>
   )

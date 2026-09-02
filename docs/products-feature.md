@@ -64,9 +64,10 @@ constants/catalog.ts       VARIANT_AXES — which columns each type uses
                                            type does not use
 ```
 
-Both, not either. The schema is what an admin sees; the service is what a
-direct `POST` to the Server Action hits. Neither is redundant, because they
-are guarding different callers.
+Both, not either. The schema is what an admin sees — in the browser *and* on
+the way back from the server, since it runs in both. The service is what a
+direct `POST` to the Server Action hits, and what a future seed script or
+background job hits too. They are guarding different callers.
 
 ### Switching the type of an existing product
 
@@ -93,22 +94,26 @@ Unless one has been ordered — see below.
    ├── delete-product-dialog.tsx        useTransition
    ├── product-form.tsx         Client — useActionState + real form state
    ├── product-gallery-field.tsx
-   └── product-variants-field.tsx
-        │
-        ↓
-  actions/product/              "use server" — authenticate, validate,
-   ├── save-product.ts           delegate, revalidate
+   ├── product-variants-field.tsx
+   └── product-ingredients-field.tsx
+        │                            ┌─────────────────────────────────┐
+        ├───────────────────────────→│  schemas/product.schema.ts      │
+        ↓                            │  Zod — the only definition of   │
+  actions/product/                   │  valid, run on BOTH sides       │
+   ├── save-product.ts  ────────────→└─────────────────────────────────┘
    └── delete-product.ts
-        │
-        ↓
-  schemas/product.schema.ts     Zod — the only definition of valid
         │
         ↓
   services/product.service.ts   every rule about products
         │
-        ├──→ lib/db.ts          Prisma
-        └──→ lib/uploads.ts     the gallery on disk
+        ├──→ ingredient.service.ts   the raw-material master list
+        ├──→ lib/db.ts               Prisma
+        └──→ lib/uploads.ts          the gallery on disk
 ```
+
+The schema hangs off to the side because it is the one module both ends
+depend on: the form runs it before dispatching, the action runs it on what
+arrives. See [Validation](#validation).
 
 ### One save action, not `createVariant` / `updateVariant`
 
@@ -355,10 +360,82 @@ that is when the field becomes worth its space.
 
 ## Validation
 
-`schemas/product.schema.ts` is the only definition of what a valid product is.
-The browser-side attributes — `required`, `maxLength`, `accept` — are a
-courtesy; a Server Action is a public POST endpoint, so the schema is the
-gate.
+`schemas/product.schema.ts` is the only definition of what a valid product is,
+and — unlike every other form in this project so far — it is also the only
+thing enforcing it in the browser. **There is not one `required` attribute in
+this form.**
+
+### The same function runs twice
+
+`parseProductForm(formData)` is called in two places:
+
+```text
+  product-form.tsx  onSubmit ──→ parseProductForm ──→ errors? show them, stop
+        │                                             none? dispatch
+        ↓
+  save-product.ts   the action ──→ parseProductForm ──→ errors? return them
+```
+
+Same module, same messages, two callers. That is possible because nothing in
+the schema touches the database or the filesystem — it reads a `FormData` and
+returns either a parsed product or a map of errors, which a browser can do as
+easily as a server.
+
+The client pass is what makes a mistake visible without a round trip. The
+server pass is what makes the rule *true*, because a Server Action is a public
+POST endpoint and nothing stops someone calling it directly. Neither is
+redundant.
+
+### Why not HTML validation
+
+`required`, `min`, `step` and `pattern` look like they do this for free, and
+`<Form>` switches them off (`noValidate`) on purpose:
+
+- They enforce a **second, weaker copy** of the rules. `required` cannot say
+  "at most two decimal places", "this combination already exists", or "this
+  row does not match the product type" — so the real rules had to live in the
+  schema anyway, and the attributes were only ever a subset that could drift
+  from it.
+- They **stop the submit before the schema can give a better answer**, so the
+  admin sees the browser's generic sentence instead of the one written for
+  that field.
+- The bubble is unstyleable, appears in the *browser's* language rather than
+  the console's Arabic, and vanishes on the next click.
+
+`maxLength` stays, because it is not validation: it stops the twenty-first
+character from being typed rather than reporting it afterwards. So does
+`accept` on the file input, for the same reason.
+
+### One flat map, from field name to message
+
+Errors are `Record<string, string>` keyed by the input's own `name`:
+
+```ts
+{
+  "slug": "هذا المعرّف مستخدم في عطر آخر — اختر غيره.",
+  "v.new-2.price": "سعر غير صالح — رقم بمنزلتين عشريتين كحد أقصى.",
+  "ing.ing-1.name": "هذا المكوّن مذكور مرتين."
+}
+```
+
+That shape is not an accident: it is exactly what `<Form errors>` takes, so a
+parse result goes straight to the form with no adapter. Every `<Field>` has a
+`name`, and every `<FieldError />` renders with **no props at all** — the
+field knows its own name, the name is the key. `variantFieldName()` and
+`ingredientFieldName()` build those keys in one place, so an input and the
+error pointing at it cannot be renamed apart.
+
+A nested `{ fields, variants, ingredients }` shape would have to be flattened
+at the call site anyway, and every place that did the flattening would be a
+place it could be done differently.
+
+### What the admin actually sees
+
+One submit with three mistakes in it produces three red fields, three
+messages, and **not one lost keystroke**: focus jumps to the first bad field,
+the rest of the form is exactly as it was typed, and each message disappears
+as its own field is edited. The next section is the two decisions that make
+the second half of that true.
 
 ### Variant rows arrive keyed, not indexed
 
@@ -376,14 +453,20 @@ field of a row is reachable from its key.
 
 The key is also what carries an error message back to the right row. The
 custom flattener in `collectErrors()` turns `["variants", 2, "price"]` into
-`variantErrors[keys[2]].price` — `z.flattenError` is no use, because it
-collapses everything under `variants` into a single list and this form has six
-inputs per row that each need their own line.
+the key `v.<the third row's key>.price`, which is literally the `name` of the
+input that caused it — `z.flattenError` is no use, because it collapses
+everything under `variants` into a single list and this form has six inputs
+per row that each need their own line.
+
+The same walk handles ingredients, and a row-level issue with no leaf falls
+through to `v.<key>.row`, a `<Field>` that has a name and no control. It
+exists so that "this combination is duplicated" — a problem belonging to the
+row rather than to any one input in it — has somewhere to be said.
 
 ### Keys must not be random
 
-`initialRows()` uses each variant's **database id** as its key, and rows added
-after mount are numbered `new-1`, `new-2`. Never `crypto.randomUUID()`: the
+`initialVariantRows()` and `initialIngredientRows()` use each row's **database
+id** as its key, and rows added after mount are numbered `new-1`, `ing-2`. Never `crypto.randomUUID()`: the
 form renders on the server and again in the browser, the two would disagree,
 and the hydration mismatch would land on the very hidden input the server uses
 to line an error up with a row.
@@ -403,23 +486,76 @@ this feature starts with one.
 
 ---
 
-## Two pieces of client state, and only two
+## A rejected save keeps every value
 
-`product-form.tsx` holds `productType` and the list of variant rows. Every
-input is an uncontrolled `defaultValue` read out of the browser's own
-`FormData`, exactly as in the category form.
+This took two deliberate decisions, and both are easy to undo by accident.
+
+### The action is dispatched from `onSubmit`, not from `<form action>`
+
+**React resets an uncontrolled form after an action passed to the `action`
+prop completes** — including when it completes with errors. On a form this
+size that is twenty inputs, a gallery and every variant row wiped because one
+price had a typo in it.
+
+So `product-form.tsx` handles `submit` itself, calls `preventDefault()`, and
+dispatches inside `startTransition`:
+
+```tsx
+function handleSubmit(event) {
+  event.preventDefault()
+  const formData = new FormData(event.currentTarget)
+  const parsed = parseProductForm(formData)
+  if (!parsed.success) { setClientErrors(parsed.errors); return }
+  setClientErrors(null)
+  startTransition(() => formAction(formData))
+}
+```
+
+`useActionState`'s `pending` flag still works — it is the same dispatch
+function — and the reset does not happen. The cost is that the form no longer
+submits without JavaScript, which this one could never do anyway: the variant
+editor *is* JavaScript.
+
+> The category dialog still uses `<form action>`, and still resets on a failed
+> submit. It is much less painful there — six fields, and the dialog is
+> remounted with a fresh `key` on every open — but it is the same defect, and
+> the fix is the same five lines.
+
+### Nothing is in React state that does not have to be
+
+Every value is an uncontrolled `defaultValue`, so a re-render after a failed
+save has no opportunity to overwrite what is in the box. Three things are
+state, because only they change structurally:
+
+| State | Why it cannot be a `defaultValue` |
+| --- | --- |
+| `productType` | Decides which selects the variant editor renders |
+| `variantRows` / `ingredientRows` | The *set* of rows, added and removed by hand |
+| `clientErrors` | What the schema said here, before the network was touched |
+
+The displayed errors are **derived**, not stored: `clientErrors ?? state.errors`.
+A local refusal wins while it stands; otherwise the server's answer is read
+straight out of the action state. Copying `state.errors` into state with an
+effect would work too, and would add a render pass plus a window in which the
+two disagreed about the same field.
 
 [`folder-structure.md`](./folder-structure.md) predicted that this would be
 the form to pull in `react-hook-form`: *"A form with dependent fields or live
 cross-field validation (the product form, with its type-dependent variant
 rows) is the one that should pull it in."*
 
-It has not been. The dependency turned out to be on the form's **structure**,
-not its values — `productType` decides which selects exist, not what any
-field's value is — and structure is cheap to hold in `useState`. There is
-still no `react-hook-form` and no `@tanstack/react-query` in the project. The
-prediction becomes true the day this form needs live cross-field validation,
-such as a price that must exceed a cost field beside it.
+It has not been, for two reasons. The dependency turned out to be on the
+form's **structure**, not its values — `productType` decides which selects
+exist, not what any field's value is — and structure is cheap to hold in
+`useState`. And the "validated by the entity's Zod schema through
+`standardSchemaResolver`, so the form and the Server Action enforce identical
+rules" property that paragraph wanted from the library was already there for
+free: the schema reads a `FormData`, and the browser has one.
+
+There is still no `react-hook-form` and no `@tanstack/react-query` in the
+project. The prediction becomes true the day this form needs validation *as
+you type* across fields — a price that must exceed a cost field beside it —
+rather than on submit.
 
 ### It navigates away on success
 
@@ -452,11 +588,14 @@ endpoint that never renders that layout, so **both actions re-check
 | `…/product-form.tsx` | Create/edit — `useActionState`, `productType`, the row list |
 | `…/product-gallery-field.tsx` | Up to eight photos: order, removal, previews |
 | `…/product-variants-field.tsx` | The inline variant editor — the one component that branches on type |
+| `…/product-ingredients-field.tsx` | The ingredient rows and their `<datalist>` |
 | `…/delete-product-dialog.tsx` | Confirm-and-delete — `useTransition` |
 | `src/actions/product/save-product.ts` | Create or update, product + gallery + variants |
 | `src/actions/product/delete-product.ts` | Delete |
 | `src/schemas/product.schema.ts` | Zod rules, the keyed-row FormData adapter, form state |
 | `src/services/product.service.ts` | Every rule about products |
+| `src/services/ingredient.service.ts` | The raw-material master list |
+| `src/components/ui/form.tsx` | Base UI `Form` — `noValidate`, the error map, focus-first-invalid |
 | `src/constants/catalog.ts` | The four enums, in order, with their Arabic |
 | `src/utils/slug.ts` | The slug rule, shared with categories |
 
@@ -480,22 +619,81 @@ job is to stop exactly that.
 
 ---
 
+## Ingredients
+
+What is actually in the bottle — the raw materials behind the "Quality &
+Ingredients" panel that [`misk_business_analysis.md`](./misk_business_analysis.md)
+section 6 asks for.
+
+The section is **optional and has no starting row**: a perfume is sellable
+before anyone has written up its oils, and an empty ingredient row that must
+be deleted before the form will save is a worse default than no row at all.
+
+### Typed by name, resolved to an id
+
+`Ingredient` is a table, not a text column, for the reason `schema.prisma`
+gives: the same material appears on many perfumes, the shop wants to describe
+it once, and it wants to be able to ask "which perfumes use grade A oud?"
+without a `LIKE` query.
+
+But the **form submits a name**, and `ingredient.service.ts` decides whether
+that is a row that already exists or a new one. A hidden id would only be
+trustworthy while the suggestion list matched the database, and would be wrong
+the moment two admins added the same material in two tabs.
+
+### The master list cannot be allowed to grow near-duplicates
+
+`Ingredient.name` is `@unique`, and Postgres compares that byte for byte — so
+"Oud Oil" and "oud  oil" would both be accepted and the list would sprout a
+twin every time somebody typed with a different shift key. That is exactly the
+place a typo must not reach: the panel it feeds is a *trust* panel.
+
+So matching is case- and whitespace-insensitive, in two layers:
+
+| Layer | What it does |
+| --- | --- |
+| `ingredientKey()` in the schema | Normalises for the duplicate check *within one product* |
+| `resolveIngredientIds()` in the service | Matches the same way against the whole table, and reuses the existing row |
+
+The spelling already in the table always wins. `createMany({ skipDuplicates })`
+covers the race where two admins add the same new material at the same moment.
+
+Resolution happens **inside the product's transaction**, and takes the
+transaction client as an argument. An ingredient created for a product whose
+save then failed would be a material nobody chose to add, sitting in the
+master list forever.
+
+### Suggestions come from a `<datalist>`
+
+Not a combobox. A datalist filters as you type, is announced by screen
+readers, mirrors correctly in RTL, costs nothing — and, crucially, does not
+*stop* the admin entering a material that is not on the list yet, which is the
+whole point of a list that grows. A combobox earns its place when the list is
+long enough to need grouping, or when each entry needs a description beside
+its name.
+
+### Its own service
+
+`ingredient.service.ts` owns the `Ingredient` table; `product.service.ts` owns
+the `ProductIngredient` join rows that point at it. The split is not
+ceremony — the table has a life beyond products, and an `/admin/ingredients`
+console will want listing, renaming and a delete guard, none of which is a
+product's business.
+
+**Dropping an ingredient from a perfume never deletes the material.** The join
+rows are replaced wholesale on every save, because they carry no identity
+beyond `(product, ingredient)` and a note is cheap to rewrite. The materials
+they point at belong to the shop.
+
+---
+
 ## What is deliberately not here
 
-**The ingredients editor.** `Ingredient` and `ProductIngredient` exist in the
-schema and nothing writes them yet.
-
-This is a scope call, not an oversight. Attaching an ingredient to a perfume
-is easy; the hard half is the **master list** — the shop needs to create,
-rename and describe "Oud Oil — Grade A" once and reuse it across thirty
-products, which is a console of its own, with its own delete guard (an
-ingredient in use cannot be removed) and its own route. Bolting a free-text
-"add ingredient" box onto this form would create that master list by accident,
-one typo at a time, and the trust section in
-[`misk_business_analysis.md`](./misk_business_analysis.md) section 6 is
-exactly the place a typo must not reach.
-
-`/admin/ingredients` is the right shape, and it is the next thing to build.
+**An ingredients *console*.** The product form can create a material, and that
+is enough to build a catalogue with. What it cannot do is rename one across
+thirty products, give it the description the trust panel wants, or retire one
+nobody uses. That is `/admin/ingredients`, with its own delete guard — an
+ingredient in use cannot be removed — and it is the next thing to build.
 
 **Search, filters and pagination.** The table renders every perfume. That is
 correct for a shop with tens of products and wrong at hundreds, and it is the
@@ -515,7 +713,9 @@ order; the type checker finds the ones you miss.
 it to `BOTTLE_SIZES` and `BOTTLE_SIZE_LABEL`. The `Exhaustive<>` guard fails
 the build until you do the second half, which is the point of it.
 
-**Ingredients** — build `/admin/ingredients` first, then add a picker here.
+**A field on an ingredient** (a description, a supplier) — it belongs on
+`Ingredient`, which means it belongs on `/admin/ingredients`, not on this
+form. A material's description is the same on every perfume that uses it.
 
 **Moving the gallery to R2** — rewrite `saveImage` and `deleteImage` in
 `lib/uploads.ts`. Nothing in this feature knows where a URL points.

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { ProductForm } from "@/components/admin/products"
 import { PageContainer, PageHeader } from "@/components/admin/shared"
 import { listCategoryOptions } from "@/services/category.service"
+import { listIngredients } from "@/services/ingredient.service"
 import { getProduct } from "@/services/product.service"
 
 export const metadata = { title: "تعديل عطر" }
@@ -15,9 +16,9 @@ export const metadata = { title: "تعديل عطر" }
  * from the route literal, so the key is `id` because the folder is `[id]`
  * and for no other reason.
  *
- * The two reads are issued together rather than one after the other — they
- * do not depend on each other, and awaiting them in sequence would add a
- * round trip to every load of this page for nothing.
+ * The three reads are issued together rather than one after another — none
+ * depends on the others, and awaiting them in sequence would add two round
+ * trips to every load of this page for nothing.
  *
  * `notFound()` rather than an error: a stale bookmark to a deleted perfume is
  * a 404, not a failure, and the `/admin` layout keeps the sidebar standing
@@ -28,9 +29,10 @@ export default async function EditProductPage(
 ) {
   const { id } = await props.params
 
-  const [product, categories] = await Promise.all([
+  const [product, categories, ingredients] = await Promise.all([
     getProduct(id),
     listCategoryOptions(),
+    listIngredients(),
   ])
 
   if (!product) notFound()
@@ -42,7 +44,11 @@ export default async function EditProductPage(
         description="التعديلات تظهر في المتجر فور الحفظ."
       />
 
-      <ProductForm product={product} categories={categories} />
+      <ProductForm
+        product={product}
+        categories={categories}
+        ingredients={ingredients}
+      />
     </PageContainer>
   )
 }
