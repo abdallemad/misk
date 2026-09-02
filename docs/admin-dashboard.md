@@ -22,7 +22,7 @@ src/app/admin/
 ├── page.tsx          #   /admin            — the overview (real data)
 │
 ├── products/         #   /admin/products   — scaffold
-├── categories/       #   /admin/categories — scaffold
+├── categories/       #   /admin/categories — built — categories-feature.md
 ├── orders/           #   /admin/orders     — scaffold
 ├── customers/        #   /admin/customers  — scaffold
 └── settings/         #   /admin/settings   — scaffold
@@ -35,10 +35,12 @@ src/app/admin/
 > which buys nothing. The layout still belongs to this subtree only, which is
 > the property the route group was there to provide.
 
-The five scaffold pages exist so the sidebar is honest: every nav item routes
-to a real page that says what belongs there and which doc specifies it,
-rather than a 404 that looks like a bug. Each is deleted by the pull request
-that builds its section.
+The remaining scaffold pages exist so the sidebar is honest: every nav item
+routes to a real page that says what belongs there and which doc specifies
+it, rather than a 404 that looks like a bug. Each is deleted by the pull
+request that builds its section — `categories/` was the first to go, and
+[`categories-feature.md`](./categories-feature.md) is the worked example of
+what replacing one looks like.
 
 ---
 

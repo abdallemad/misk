@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# uploaded media (see src/lib/uploads.ts) — the folder is tracked, its
+# contents are not: uploads are per-environment data, not source.
+/public/uploads/*
+!/public/uploads/.gitkeep
