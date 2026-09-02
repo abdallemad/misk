@@ -175,6 +175,13 @@ model ProductVariant {
 // Orders (minimal — supports "made-to-order" checkout flow, section 8)
 // ------------------------------------------------------------
 
+/// Who a signed-in person is to the shop. Mirrored from Clerk
+/// `publicMetadata.role` — see the note on `User.role`.
+enum Role {
+  USER
+  ADMIN
+}
+
 enum OrderStatus {
   PENDING
   CONFIRMED
@@ -184,20 +191,40 @@ enum OrderStatus {
   CANCELLED
 }
 
-model Customer {
+/// Application user, mirrored from Clerk — Clerk owns the credentials,
+/// this table owns everything the catalog needs a foreign key to (orders).
+///
+/// The row is written by `syncCurrentUser()` (services/auth.service.ts) when
+/// the browser lands on `/auth-callback` after a sign-in or sign-up, and
+/// re-written on every subsequent visit so a profile edit in Clerk lands
+/// here too. `clerkId` — not `email` — is the join key, because a person can
+/// change their primary email address in Clerk and stay the same user.
+model User {
   id        String   @id @default(cuid())
-  name      String
+  clerkId   String   @unique
   email     String   @unique
+  name      String?
+  imageUrl  String?
   phone     String?
+
+  /// Mirrored from Clerk `publicMetadata.role`. Clerk stays the source of
+  /// truth — `/admin` is gated on the Clerk value, not on this column — but
+  /// the mirror lets the admin users list filter and sort by role without
+  /// an API round trip per row.
+  role      Role     @default(USER)
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   orders    Order[]
+
+  @@index([role])
 }
 
 model Order {
   id         String      @id @default(cuid())
-  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  customerId String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId     String
   status     OrderStatus @default(PENDING)
   totalPrice Decimal     @db.Decimal(10, 2)
   currency   String      @default("SAR")
@@ -206,6 +233,8 @@ model Order {
   updatedAt  DateTime    @updatedAt
 
   items      OrderItem[]
+
+  @@index([userId])
 }
 
 model OrderItem {
