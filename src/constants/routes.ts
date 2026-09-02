@@ -28,6 +28,8 @@ export const ROUTES = {
   /* Admin --------------------------------------------------------------- */
   admin: "/admin",
   adminProducts: "/admin/products",
+  /** The create form. A static segment, so it wins over `[id]` below. */
+  adminProductNew: "/admin/products/new",
   adminCategories: "/admin/categories",
   adminOrders: "/admin/orders",
   adminCustomers: "/admin/customers",
@@ -35,6 +37,22 @@ export const ROUTES = {
 } as const
 
 export type Route = (typeof ROUTES)[keyof typeof ROUTES]
+
+/**
+ * The edit form for one perfume — `/admin/products/<id>`.
+ *
+ * A function rather than a template written at the call site, for the same
+ * reason every other path in this file is a constant: the day the route
+ * becomes `/admin/catalog/<id>/edit`, this is the only line that changes.
+ *
+ * `encodeURIComponent` is belt-and-braces — Prisma ids are cuids and carry
+ * nothing that needs escaping — but the id is a database value reaching a
+ * URL, and that is the point at which it should be encoded rather than the
+ * point at which someone notices it was not.
+ */
+export function adminProductRoute(id: string): string {
+  return `${ROUTES.adminProducts}/${encodeURIComponent(id)}`
+}
 
 /**
  * The default landing spot after a successful sync, and the only value

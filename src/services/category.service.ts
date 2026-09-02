@@ -68,6 +68,31 @@ export async function listCategories(): Promise<CategoryRow[]> {
   }))
 }
 
+/** Just enough of a category to fill a `<select>`. */
+export type CategoryOption = {
+  id: string
+  name: string
+  slug: string
+  isActive: boolean
+}
+
+/**
+ * The categories a perfume can be filed under, in storefront order.
+ *
+ * A separate query from `listCategories()` rather than a `.map()` over it,
+ * because the caller is the **product form** — a Client Component — and
+ * `listCategories` carries a per-row product count that would be serialised
+ * into the page for no one to read. Inactive segments are included and
+ * labelled by the form: hiding them would make an existing product's own
+ * category vanish out of its select the moment someone retires it.
+ */
+export async function listCategoryOptions(): Promise<CategoryOption[]> {
+  return db.category.findMany({
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, slug: true, isActive: true },
+  })
+}
+
 /** One category by id, or `null`. */
 export async function getCategory(id: string): Promise<Category | null> {
   return db.category.findUnique({ where: { id } })

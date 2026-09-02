@@ -6,6 +6,7 @@ import {
   MAX_IMAGE_BYTES,
   MAX_IMAGE_MB,
 } from "@/constants/uploads"
+import { SLUG_PATTERN, SLUG_RULE_MESSAGE } from "@/utils/slug"
 
 /**
  * Validation for the category form — the single definition both the form and
@@ -24,14 +25,11 @@ import {
  * ---------------------------------------------------------------------- */
 
 /**
- * Latin lowercase words joined by single hyphens — `youth`, `oud-classics`.
- *
- * Deliberately not derived from `name`: names here are Arabic, and there is
- * no transliteration that produces a URL an Egyptian shopper would recognise
- * ("شبابي" → "shbaby"?). The admin types the slug, so `/shop/youth` stays
- * something a human chose.
+ * The slug rule lives in `utils/slug.ts` because products answer to the same
+ * one, and a second copy of the regex is a second chance for the two forms to
+ * disagree about what a valid URL segment is. Why the admin types it rather
+ * than having it derived from the Arabic name is documented there.
  */
-export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /** Longest name the table column renders without wrapping awkwardly. */
 export const NAME_MAX = 40
@@ -50,10 +48,7 @@ const slug = z
   .toLowerCase()
   .min(2, "المعرّف مطلوب — حرفان على الأقل.")
   .max(SLUG_MAX, `المعرّف طويل — ${SLUG_MAX} حرفًا كحد أقصى.`)
-  .regex(
-    SLUG_PATTERN,
-    "حروف إنجليزية صغيرة وأرقام وشرطات فقط، مثل: youth أو oud-classics."
-  )
+  .regex(SLUG_PATTERN, SLUG_RULE_MESSAGE)
 
 const description = z
   .string()

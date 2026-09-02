@@ -21,7 +21,9 @@ src/app/admin/
 ├── error.tsx         # error boundary — keeps the sidebar standing
 ├── page.tsx          #   /admin            — the overview (real data)
 │
-├── products/         #   /admin/products   — scaffold
+├── products/         #   /admin/products   — built — products-feature.md
+│   ├── new/          #   /admin/products/new
+│   └── [id]/         #   /admin/products/[id]
 ├── categories/       #   /admin/categories — built — categories-feature.md
 ├── orders/           #   /admin/orders     — scaffold
 ├── customers/        #   /admin/customers  — scaffold
@@ -38,9 +40,15 @@ src/app/admin/
 The remaining scaffold pages exist so the sidebar is honest: every nav item
 routes to a real page that says what belongs there and which doc specifies
 it, rather than a 404 that looks like a bug. Each is deleted by the pull
-request that builds its section — `categories/` was the first to go, and
-[`categories-feature.md`](./categories-feature.md) is the worked example of
-what replacing one looks like.
+request that builds its section — `categories/` was the first to go, then
+`products/`.
+
+The two are worth reading as a pair, because they answer the "one page or
+several?" question differently and say why:
+[`categories-feature.md`](./categories-feature.md) keeps everything in
+dialogs on the list; [`products-feature.md`](./products-feature.md) takes
+`new/` and `[id]/` routes, because a perfume carries a gallery and an
+open-ended collection of variants.
 
 ---
 
@@ -223,6 +231,27 @@ The barrel also re-exports `StatusBadge`, `OrderStatusBadge`, `StockBadge`
 and `BrandLoader` from `components/shared`. Re-exporting rather than
 duplicating means an order badge in the admin table and one on the customer's
 order page can never drift apart.
+
+### A note on tall dialogs
+
+`DialogContent` is a `position: fixed` popup centred on the viewport, which
+means a dialog taller than the screen cannot be scrolled to — its footer, and
+therefore its submit button, is simply unreachable. Any dialog with more than
+a handful of fields should cap itself and scroll its middle:
+
+```tsx
+<DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[80svh]">
+  <DialogHeader>…</DialogHeader>
+  <DialogBody>…the fields…</DialogBody>
+  <DialogFooter>…</DialogFooter>
+</DialogContent>
+```
+
+`DialogBody` is a `ScrollArea`; the row template and the cap are on the
+content because a dialog with two rows would otherwise stretch its footer.
+The full reasoning — including why `svh` and not `vh`, and why `minmax(0,1fr)`
+and not `1fr` — is on the component in
+[`dialog.tsx`](../src/components/ui/dialog.tsx).
 
 ### Conventions these encode
 

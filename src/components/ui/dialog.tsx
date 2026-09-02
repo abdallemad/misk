@@ -5,6 +5,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { XIcon } from "lucide-react"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -90,6 +91,48 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/**
+ * The scrolling middle of a tall dialog.
+ *
+ * A dialog with more fields than fit on a laptop used to grow past the
+ * viewport and take its own footer with it — the submit button ended up
+ * below the fold with nothing to scroll, because the popup is
+ * `position: fixed` and centred on the viewport rather than in page flow.
+ *
+ * Wrapping the body in this fixes it, on two conditions the caller has to
+ * meet on `DialogContent`:
+ *
+ *   1. a ceiling — `max-h-[80svh]`, so the popup stops growing;
+ *   2. `grid-rows-[auto_minmax(0,1fr)_auto]`, so the header and footer take
+ *      their natural height and *this* row absorbs the remainder. The
+ *      `minmax(0,…)` is the load-bearing half: a bare `1fr` track refuses to
+ *      shrink below its content's min-content height, which is exactly the
+ *      overflow being fixed.
+ *
+ * `svh` rather than `vh` because mobile Safari's `vh` is the *large*
+ * viewport — the one that assumes the address bar has scrolled away — so a
+ * `vh`-capped dialog is taller than the screen it is on until the user
+ * scrolls, which they cannot do inside a modal.
+ *
+ * The negative inline margin lets the scrollbar sit against the popup's edge
+ * while the padding keeps the fields, and their focus rings, off it.
+ */
+function DialogBody({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof ScrollArea>) {
+  return (
+    <ScrollArea
+      data-slot="dialog-body"
+      className={cn("-mx-4 min-h-0", className)}
+      {...props}
+    >
+      <div className="px-4 py-px">{children}</div>
+    </ScrollArea>
+  )
+}
+
 function DialogFooter({
   className,
   showCloseButton = false,
@@ -148,6 +191,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
