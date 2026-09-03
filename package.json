@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
     "grant-admin": "node --env-file=.env --experimental-strip-types scripts/grant-admin.mts",
