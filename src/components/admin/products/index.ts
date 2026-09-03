@@ -10,4 +10,5 @@
  */
 
 export { ProductForm } from "./product-form"
+export { ProductsFilters } from "./products-filters"
 export { ProductsTable } from "./products-table"

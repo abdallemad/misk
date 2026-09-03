@@ -133,13 +133,33 @@ Equivalent by hand: Clerk dashboard → **Users** → the user → **Metadata** 
 { "role": "ADMIN" }
 ```
 
-There is deliberately **no UI for this**. The first admin has to come from
-outside the app, and an in-app "make me an admin" control is a privilege
-escalation waiting to happen.
+### The bootstrap rule, and the in-app control that keeps it
 
-After granting, the change is live on the user's next request. Their
-Postgres `User.role` catches up the next time they pass through
-`/auth-callback`.
+**The first admin must come from outside the app** — `grant-admin` or the
+Clerk dashboard. An in-app "make me an admin" control is a privilege
+escalation waiting to happen, and that is what this rule forbids.
+
+Once a first admin exists, the customers console *does* have a UI to promote a
+**second** — `customer-role-control.tsx` on `/admin/customers/[id]`, see
+[`customers-feature.md`](./customers-feature.md). It does not weaken the rule,
+because the escalation it guards against ("a logged-in non-admin makes
+themselves an admin") is closed by two checks in
+`actions/customer/set-role.ts`:
+
+- `isAdmin()` — the caller is already an admin (re-checked here: the layout
+  guard does not run for a Server Action POST);
+- **not-self** — `getCurrentUser().id` must not be the target, so a lone admin
+  cannot demote themselves into a locked-out console, and nobody promotes
+  their own account.
+
+The Clerk write is still the real one — `setCustomerRole` calls
+`clerkClient().users.updateUserMetadata` first and only mirrors to Postgres if
+that succeeds — so everything below about *where the role lives* is unchanged.
+
+After granting (by any route), the change is live on the user's next request.
+Their Postgres `User.role` catches up the next time they pass through
+`/auth-callback`, or immediately if the change came through the console (which
+writes the mirror itself).
 
 ---
 

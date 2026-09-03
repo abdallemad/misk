@@ -19,9 +19,9 @@
 - [`admin-access-control.md`](./admin-access-control.md) — how `/admin` is locked down
 - [`categories-feature.md`](./categories-feature.md) — admin CRUD for Youth / Women / Men
 - [`products-feature.md`](./products-feature.md) — **built** — admin CRUD for the sellable entity: gallery upload and the inline variant-collection editor (size+style rows vs. weight rows, depending on product type). The ingredients editor is deliberately not in it yet; that document says why
-- [`orders-feature.md`](./orders-feature.md) — admin read-first: order status and fulfilment
-- [`customers-feature.md`](./customers-feature.md) — admin read-first: accounts mirrored from Clerk
-- [`database-seeding.md`](./database-seeding.md) — mock data for development
+- [`orders-feature.md`](./orders-feature.md) — **built** — admin read-first: the orders list, one order's lines + shipping-address snapshot, and a status control. Orders are created by checkout, not the console
+- [`customers-feature.md`](./customers-feature.md) — **built** — admin read-first: accounts mirrored from Clerk and their order history, with one write — promoting/demoting a customer's role (Clerk-first, mirror follows)
+- [`database-seeding.md`](./database-seeding.md) — **built** — `npm run seed-dev`: an idempotent, deterministic mock catalog + customers + orders (with shipping addresses) for development
 
 ## Overview
 
@@ -339,10 +339,18 @@ admin/
 ├── categories/   # built — table + form dialog + delete dialog
 │                 #   categories-feature.md
 │
-├── products/     # built — table + form page + gallery + variant editor
+├── products/     # built — table + filters + form page + gallery + variant editor
 │                 #   products-feature.md
 │
-└── shared/       # page container, page header, section card,
+├── customers/    # built — table + filters + order history + role control
+│                 #   customers-feature.md
+│
+├── orders/       # built — table + filters + status control + line-item summary
+│                 #   orders-feature.md
+│
+└── shared/       # page container, page header, section card, stat tile,
+                  #   AdminPagination, ComingSoon — plus list-controls.tsx
+                  #   (useListNavigation, a "use client" hook, imported by path)
                   # data table wrapper, search input, toolbar,
                   # pagination, empty/loading states, status badge,
                   # delete confirmation dialog
@@ -372,9 +380,12 @@ actions/
 │                  #   action for the whole form, not createVariant /
 │                  #   updateVariant — products-feature.md says why
 ├── category/      # built — save-category.ts, delete-category.ts
+├── customer/      # built — set-role.ts. isAdmin() + a not-self check, then
+│                  #   customer.service.setCustomerRole — customers-feature.md
+├── order/         # built — update-order-status.ts. The orders console's one
+│                  #   write — orders-feature.md
 ├── search/
-├── cart/
-└── order/
+└── cart/
 ```
 
 ### Responsibilities
@@ -398,12 +409,17 @@ services/
 │
 ├── auth.service.ts        # Clerk -> User sync, role resolution — auth-callback.md
 ├── admin.service.ts       # read-only counts for the /admin overview
-├── product.service.ts     # built — products-feature.md
+├── product.service.ts     # built — products-feature.md. listProducts takes
+│                          #   { search, categoryId, productType, status, page }
 ├── ingredient.service.ts  # built — the raw-material master list
 ├── category.service.ts    # built — categories-feature.md
+├── customer.service.ts    # built — listCustomers + getCustomer, plus one
+│                          #   write: setCustomerRole (Clerk first, mirror
+│                          #   follows) — customers-feature.md
+├── order.service.ts       # built — listOrders + getOrder + updateOrderStatus.
+│                          #   Reads-first; does not touch stock — orders-feature.md
 ├── search.service.ts
 ├── cart.service.ts
-├── order.service.ts
 └── payment.service.ts
 ```
 
@@ -453,9 +469,17 @@ hooks/
 > table is server-rendered and a mutation calls `revalidatePath`, so a client
 > cache would only be a second copy of the same data to keep in step. See the
 > reasoning in [`categories-feature.md`](./categories-feature.md) — it is a
-> judgement about that feature, not a repeal of the rule. The first screen
-> with genuine client state (drag-to-reorder, client-side filtering,
-> optimistic updates) is the one that should add it.
+> judgement about that feature, not a repeal of the rule.
+>
+> **Search / filter / pagination did not change this.** The products,
+> customers and orders lists all have them, and all three are URL-driven:
+> `?q=` / `?page=` / filter params on `searchParams`, a Server Component that
+> re-runs per navigation, and a `"use client"` filter bar whose only job is to
+> `router.push` new params (`components/admin/shared/list-controls.tsx`).
+> There is no client data cache, so there is nothing for React Query to
+> manage. The layer earns its place at the first screen with *optimistic*
+> client state — drag-to-reorder, an edit that must paint before the server
+> replies — and not before.
 
 ### Responsibilities
 
@@ -539,10 +563,17 @@ prisma/
 │
 ├── schema.prisma
 │
-├── migrations/
-│
-└── seed.ts
+└── migrations/
 ```
+
+> **Seeding does not live in `prisma/`.** There is no `prisma/seed.ts` and no
+> `prisma.seed` config. Seed scripts are `scripts/*.mts`, run through Node's
+> own type stripping with no extra dependency:
+> [`scripts/seed-categories.mts`](../scripts/seed-categories.mts) (the three
+> founding segments — [`categories-feature.md`](./categories-feature.md)) and
+> [`scripts/seed-dev.mts`](../scripts/seed-dev.mts) (`npm run seed-dev` — a
+> full mock catalog, customers and orders for development, documented in
+> [`database-seeding.md`](./database-seeding.md)).
 
 Core models (see [`erd.md`](./erd.md) for the full diagram):
 
@@ -557,11 +588,16 @@ Core models (see [`erd.md`](./erd.md) for the full diagram):
   `G_8` | `G_12`, nullable), oilGrade, sku, price (`Decimal(10,2)`), stock,
   isActive
 - `Cart` / `CartItem` — cartId, variantId, quantity
-- `Order` / `OrderItem` — order-time snapshot of product name, variant
-  label, and price, so a later price change never rewrites history
+- `Order` — userId, status (`OrderStatus`, six members), totalPrice, plus a
+  **shipping-address snapshot** (`shippingName` / `shippingPhone` /
+  `shippingLine1` / `shippingLine2` / `shippingCity` / `shippingGovernorate` /
+  `shippingCountry`, all nullable — captured at checkout, never rewritten;
+  older rows carry none). `OrderItem` snapshots `unitPrice`. See
+  [`orders-feature.md`](./orders-feature.md).
 - `User` — mirrored from Clerk. `clerkId` is the join key (not `email`,
   which a user can change); `role` is `USER | ADMIN`, itself mirrored from
-  Clerk `publicMetadata.role`. Written by `/auth-callback`.
+  Clerk `publicMetadata.role`. Written by `/auth-callback`, and by
+  `customer.service.setCustomerRole` when an admin promotes someone.
 
 ---
 
@@ -623,16 +659,21 @@ constants/
 Nothing outside `routes.ts` writes a route string literal, so a rename costs
 one edit rather than a grep. `admin-nav.ts` is read by the sidebar, the
 breadcrumbs *and* the overview's section cards, so the three cannot disagree
-about what a route is called.
+about what a route is called. `design-system.ts` also owns `ORDER_STATUSES`
+(the six in fulfilment order) and the `OrderStatus` re-export from Prisma; a
+detail route is built with `adminCustomerRoute(id)` / `adminOrderRoute(id)` /
+`adminProductRoute(id)` from `routes.ts`.
 
 Also belongs here:
 
 - Query Keys
 - Product Types (`ALCOHOL_BASED`, `RAW_OIL`) — built, in `catalog.ts`
 - Bottle Sizes / Bottle Styles / Oil Weights — built, in `catalog.ts`
+- Order statuses — built, `ORDER_STATUSES` in `design-system.ts`
 - Roles
 - Permissions
-- Pagination Limits
+- Pagination Limits — `PRODUCTS_PAGE_SIZE` / `CUSTOMERS_PAGE_SIZE` /
+  `ORDERS_PAGE_SIZE` live next to their service for now (all 20)
 
 ---
 
@@ -682,9 +723,10 @@ Every feature should follow the same implementation order.
 
 - UI must never communicate with Prisma.
 - UI should communicate only with React Query hooks.
-  - *One documented exception:* the `/admin` dashboard is a read-only Server
-    Component tree that calls services directly, because there is nothing to
-    cache or mutate and the figures belong in the first paint.
+  - *One documented exception:* the `/admin` dashboard is a read-first Server
+    Component tree that calls services directly for its **reads**, because
+    there is nothing to cache and the data belongs in the first paint. Every
+    **write** still goes UI → Server Action → Service.
 - Hooks should call Server Actions.
 - Server Actions should call Services.
 - Services should communicate with Prisma.
@@ -693,6 +735,34 @@ Every feature should follow the same implementation order.
 - Validation belongs inside Schemas.
 - Shared UI belongs inside Components.
 - Helpers belong inside Utils.
+
+## List pages ship with pagination and filters
+
+Any admin screen that renders a list of rows (`products`, `customers`,
+`orders`, and anything added later) is built with paging and with whatever
+filters the page needs — from the first commit, not "when it gets slow". A
+list without paging is a bug the day the table has 30 rows.
+
+The shape is fixed so all list pages look the same:
+
+- **Service:** takes `{ search?, page?, …filters }`, returns
+  `{ rows, total, page, pageCount }`, issues the count and the page as one
+  `$transaction`.
+- **Page (Server Component):** parses/validates the params off `searchParams`,
+  calls the service, renders `<XFilters>` + `<XTable rows filtered>` +
+  `<AdminPagination page pageCount basePath params>`.
+- **`<feature>-filters.tsx` (`"use client"`):** a search `<Input>` (applies on
+  submit) and `<Select>`s (apply on change), all through `useListNavigation`
+  (`components/admin/shared/list-controls.tsx`) — which only does
+  `router.push` with new query params. **No React Query, no client cache**:
+  the list is server-rendered on every navigation. See
+  [`admin-dashboard.md`](./admin-dashboard.md), "List pages".
+
+## Detail pages name their own breadcrumb
+
+`[id]/page.tsx` renders `<BreadcrumbTitle title={entity.name} />` so the last
+crumb reads the entity, not a repeated section label or a raw id. See
+[`admin-dashboard.md`](./admin-dashboard.md), "The header".
 
 ---
 

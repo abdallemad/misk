@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 
+import { BreadcrumbTitle } from "@/components/admin/layout"
 import { ProductForm } from "@/components/admin/products"
 import { PageContainer, PageHeader } from "@/components/admin/shared"
 import { listCategoryOptions } from "@/services/category.service"
@@ -39,6 +40,7 @@ export default async function EditProductPage(
 
   return (
     <PageContainer>
+      <BreadcrumbTitle title={product.name} />
       <PageHeader
         title={product.name}
         description="التعديلات تظهر في المتجر فور الحفظ."

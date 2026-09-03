@@ -1,11 +1,22 @@
 import Link from "next/link"
 import { PlusIcon } from "lucide-react"
 
-import { ProductsTable } from "@/components/admin/products"
-import { PageContainer, PageHeader, SectionCard } from "@/components/admin/shared"
+import {
+  ProductsFilters,
+  ProductsTable,
+} from "@/components/admin/products"
+import {
+  AdminPagination,
+  PageContainer,
+  PageHeader,
+  SectionCard,
+} from "@/components/admin/shared"
 import { Button } from "@/components/ui/button"
+import { PRODUCT_TYPES } from "@/constants/catalog"
 import { ROUTES } from "@/constants/routes"
+import { listCategoryOptions } from "@/services/category.service"
 import { listProducts } from "@/services/product.service"
+import type { ProductListFilters } from "@/services/product.service"
 import { formatNumber } from "@/utils/format"
 
 export const metadata = { title: "العطور" }
@@ -19,17 +30,34 @@ export const metadata = { title: "العطور" }
  * first paint rather than arriving after a client round trip. Everything that
  * **writes** goes back through a Server Action — see `actions/product/`.
  *
- * Unlike the categories console, create and edit are their own routes rather
- * than dialogs on this one. A perfume is a gallery plus an open-ended list of
- * variants, which is more than a dialog should hold, and a real route means a
- * half-finished product has a URL someone can be sent.
- *
- * See docs/products-feature.md.
+ * Search, filters and paging are query params (`?q=`, `?category=`, `?type=`,
+ * `?status=`, `?page=`), read here and passed to `listProducts`. The filter
+ * bar is a Client Component only to turn a select change into a navigation;
+ * there is no client data cache. See docs/products-feature.md.
  */
-export default async function AdminProductsPage() {
-  const products = await listProducts()
+export default async function AdminProductsPage(
+  props: PageProps<"/admin/products">
+) {
+  const sp = await props.searchParams
 
-  const visible = products.filter((product) => product.isActive).length
+  const search = typeof sp.q === "string" && sp.q.trim() ? sp.q.trim() : undefined
+  const categoryId = typeof sp.category === "string" ? sp.category : undefined
+  const productType =
+    typeof sp.type === "string" &&
+    (PRODUCT_TYPES as readonly string[]).includes(sp.type)
+      ? (sp.type as ProductListFilters["productType"])
+      : undefined
+  const status =
+    sp.status === "active" || sp.status === "hidden" ? sp.status : undefined
+  const pageParam = typeof sp.page === "string" ? Number(sp.page) : 1
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1
+
+  const [result, categories] = await Promise.all([
+    listProducts({ search, categoryId, productType, status, page }),
+    listCategoryOptions(),
+  ])
+
+  const filtered = Boolean(search || categoryId || productType || status)
 
   return (
     <PageContainer>
@@ -47,13 +75,37 @@ export default async function AdminProductsPage() {
       <SectionCard
         title="كل العطور"
         description={
-          products.length === 0
-            ? "لم يُضف أي عطر بعد."
-            : `${formatNumber(products.length)} عطرًا، منها ${formatNumber(visible)} معروضة في المتجر.`
+          filtered
+            ? `${formatNumber(result.total)} نتيجة مطابقة.`
+            : result.total === 0
+              ? "لم يُضف أي عطر بعد."
+              : `${formatNumber(result.total)} عطرًا.`
         }
         flush
       >
-        <ProductsTable products={products} />
+        <div className="px-4 pt-4">
+          <ProductsFilters
+            categories={categories}
+            search={search}
+            categoryId={categoryId}
+            productType={productType}
+            status={status}
+          />
+        </div>
+
+        <ProductsTable products={result.products} filtered={filtered} />
+
+        <AdminPagination
+          page={result.page}
+          pageCount={result.pageCount}
+          basePath={ROUTES.adminProducts}
+          params={{
+            q: search,
+            category: categoryId,
+            type: productType,
+            status,
+          }}
+        />
       </SectionCard>
     </PageContainer>
   )

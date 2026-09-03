@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "grant-admin": "node --env-file=.env --experimental-strip-types scripts/grant-admin.mts",
-    "seed-categories": "node --env-file=.env --experimental-strip-types scripts/seed-categories.mts"
+    "seed-categories": "node --env-file=.env --experimental-strip-types scripts/seed-categories.mts",
+    "seed-dev": "node --env-file=.env --experimental-strip-types scripts/seed-dev.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

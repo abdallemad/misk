@@ -55,6 +55,23 @@ export function adminProductRoute(id: string): string {
 }
 
 /**
+ * One customer's detail page — `/admin/customers/<id>`.
+ *
+ * Same rationale as `adminProductRoute`: the path is built in one place so a
+ * later rename is one edit, and the id is `encodeURIComponent`'d at the point
+ * a database value enters a URL rather than the point someone notices it was
+ * not.
+ */
+export function adminCustomerRoute(id: string): string {
+  return `${ROUTES.adminCustomers}/${encodeURIComponent(id)}`
+}
+
+/** One order's detail page — `/admin/orders/<id>`. Same rationale as above. */
+export function adminOrderRoute(id: string): string {
+  return `${ROUTES.adminOrders}/${encodeURIComponent(id)}`
+}
+
+/**
  * The default landing spot after a successful sync, and the only value
  * `safeRedirect` falls back to.
  */

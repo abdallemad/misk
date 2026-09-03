@@ -137,42 +137,94 @@ export type ProductMutationResult =
 
 export type ProductDeleteResult = { ok: true } | { ok: false; message: string }
 
+/** Which perfumes the admin list should show — every field optional, all
+ *  combined with AND. `status` narrows on `isActive`. */
+export type ProductListFilters = {
+  search?: string
+  page?: number
+  categoryId?: string
+  productType?: ProductType
+  status?: "active" | "hidden"
+}
+
+export type ProductListResult = {
+  products: ProductRow[]
+  /** Perfumes matching the filters — what the pager counts, not the page. */
+  total: number
+  page: number
+  pageCount: number
+}
+
+/** One page of the admin products table. Tuned like the customers list: one
+ *  screen, and a shop with tens of perfumes fits without paging at all. */
+export const PRODUCTS_PAGE_SIZE = 20
+
 /* -------------------------------------------------------------------------
  * Reads
  * ---------------------------------------------------------------------- */
 
 /**
- * Every perfume, newest edit first.
+ * One page of perfumes, newest edit first, narrowed by whatever filters the
+ * admin has set.
  *
  * `updatedAt` rather than name: the admin table is a work queue, not a
  * catalogue, and the row someone just touched is the one they are most
  * likely to come back to. The storefront will sort by something else
  * entirely, which is fine — that is a different query in a different module.
  *
+ * The count and the page go out as one `$transaction`, so the "N perfumes"
+ * line and the rows below it agree even if a save lands between them — the
+ * same shape `customer.service.listCustomers` and `admin.service` use.
+ *
  * Variants and the cover image come back in the same query rather than one
  * round trip per row. The price range and stock total are then computed here
- * instead of in SQL, because the numbers are per-product and the whole set is
- * already in memory; a `groupBy` would be a second query to answer a question
- * the first one already carries the data for.
+ * instead of in SQL, because the numbers are per-product and the whole page
+ * is already in memory; a `groupBy` would be a second query to answer a
+ * question the first one already carries the data for.
  */
-export async function listProducts(): Promise<ProductRow[]> {
-  const products = await db.product.findMany({
-    orderBy: { updatedAt: "desc" },
-    include: {
-      category: { select: { id: true, name: true, slug: true } },
-      images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
-      variants: {
-        select: {
-          price: true,
-          stock: true,
-          isActive: true,
-          _count: { select: { orderItems: true } },
+export async function listProducts(
+  filters: ProductListFilters = {}
+): Promise<ProductListResult> {
+  const search = filters.search?.trim() ?? ""
+  const page = Math.max(1, Math.floor(filters.page ?? 1))
+
+  const where: Prisma.ProductWhereInput = {
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { slug: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+    ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+    ...(filters.productType ? { productType: filters.productType } : {}),
+    ...(filters.status ? { isActive: filters.status === "active" } : {}),
+  }
+
+  const [total, rows] = await db.$transaction([
+    db.product.count({ where }),
+    db.product.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * PRODUCTS_PAGE_SIZE,
+      take: PRODUCTS_PAGE_SIZE,
+      include: {
+        category: { select: { id: true, name: true, slug: true } },
+        images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
+        variants: {
+          select: {
+            price: true,
+            stock: true,
+            isActive: true,
+            _count: { select: { orderItems: true } },
+          },
         },
       },
-    },
-  })
+    }),
+  ])
 
-  return products.map((product) => {
+  const products = rows.map((product) => {
     // The price a shopper would actually be quoted, so a retired variant with
     // a stale price cannot drag the "from" figure below anything on sale.
     const sellable = product.variants.filter((variant) => variant.isActive)
@@ -197,6 +249,13 @@ export async function listProducts(): Promise<ProductRow[]> {
       ),
     }
   })
+
+  return {
+    products,
+    total,
+    page,
+    pageCount: Math.max(1, Math.ceil(total / PRODUCTS_PAGE_SIZE)),
+  }
 }
 
 /** One perfume with its gallery, variants and ingredients, or `null`. */

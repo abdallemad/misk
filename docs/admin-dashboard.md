@@ -25,8 +25,10 @@ src/app/admin/
 │   ├── new/          #   /admin/products/new
 │   └── [id]/         #   /admin/products/[id]
 ├── categories/       #   /admin/categories — built — categories-feature.md
-├── orders/           #   /admin/orders     — scaffold
-├── customers/        #   /admin/customers  — scaffold
+├── customers/        #   /admin/customers  — built — customers-feature.md
+│   └── [id]/         #   /admin/customers/[id]
+├── orders/           #   /admin/orders     — built — orders-feature.md
+│   └── [id]/         #   /admin/orders/[id]
 └── settings/         #   /admin/settings   — scaffold
 ```
 
@@ -37,18 +39,22 @@ src/app/admin/
 > which buys nothing. The layout still belongs to this subtree only, which is
 > the property the route group was there to provide.
 
-The remaining scaffold pages exist so the sidebar is honest: every nav item
-routes to a real page that says what belongs there and which doc specifies
-it, rather than a 404 that looks like a bug. Each is deleted by the pull
-request that builds its section — `categories/` was the first to go, then
-`products/`.
+`settings/` is the last scaffold page — it exists so the sidebar is honest:
+every nav item routes to a real page that says what belongs there and which
+doc specifies it, rather than a 404 that looks like a bug. It is deleted by
+the pull request that builds it — `categories/` was the first scaffold to go,
+then `products/`, `customers/`, `orders/`.
 
-The two are worth reading as a pair, because they answer the "one page or
-several?" question differently and say why:
-[`categories-feature.md`](./categories-feature.md) keeps everything in
-dialogs on the list; [`products-feature.md`](./products-feature.md) takes
-`new/` and `[id]/` routes, because a perfume carries a gallery and an
-open-ended collection of variants.
+The four built sections answer the "one page or several?" question
+differently and say why: [`categories-feature.md`](./categories-feature.md)
+keeps everything in dialogs on the list;
+[`products-feature.md`](./products-feature.md) takes `new/` and `[id]/`
+routes, because a perfume carries a gallery and an open-ended collection of
+variants; [`customers-feature.md`](./customers-feature.md) and
+[`orders-feature.md`](./orders-feature.md) are **read-first** — a list plus an
+`[id]/` route, and between them exactly two writes (a customer's role, an
+order's status), because a customer identity lives in Clerk and an order is
+created by checkout.
 
 ---
 
@@ -205,9 +211,29 @@ sidebar keeps its own scroll and the header never covers a focused row in a
 long table.
 
 Breadcrumbs are built from `ADMIN_NAV_ITEMS`, not by splitting the URL — that
-is how a segment gets «العطور» instead of `products`. Segments with no nav
-entry (a product id, `new`) fall through to a title-cased crumb, which is
-right for an id and adequate until each detail page passes its own.
+is how a segment gets «العطور» instead of `products`.
+
+### The last crumb on a detail page
+
+Nav labels are matched by **exact href**. Prefix matching (the first version)
+lit the section's own label for its sub-segments too, so
+`/admin/products/<id>` read «… / العطور / العطور». With exact matching the id
+segment has no nav entry and falls to a fallback:
+
+1. the title a detail page registered through **`BreadcrumbTitle`** — a
+   `"use client"` component the page renders with the entity's name (a
+   product, a customer, `#ABC123` for an order). It writes the name into a
+   context (`breadcrumb-title.tsx`) on mount and clears it on unmount; the
+   header reads it for the leaf crumb. `BreadcrumbTitleProvider` wraps the
+   header *and* the page in `admin/layout.tsx`, because they are siblings and
+   there is no server-side way to pass a value up from one to the other.
+2. failing that, `«…»` for an opaque id (a cuid), or a title-cased word for
+   anything else (`new` → `New`, though `new/page.tsx` also registers «عطر
+   جديد»).
+
+The pre-hydration render shows the fallback for one frame, then the effect
+swaps in the real name — acceptable for a detail page, and the reason the id
+placeholder is `«…»` and not a raw cuid.
 
 ---
 
@@ -225,12 +251,68 @@ import { PageContainer, PageHeader, SectionCard } from "@/components/admin/share
 | `PageHeader` | Title + one line of context + the page's actions |
 | `SectionCard` | One titled block — form section, stats panel, table wrapper |
 | `StatTile` | One number on the overview |
+| `AdminPagination` | Prev / next paging for a list page — Server Component, `<Link>`-based, carries the active filters through, hidden on a single page |
 | `ComingSoon` | Scaffold body for a section not built yet |
 
 The barrel also re-exports `StatusBadge`, `OrderStatusBadge`, `StockBadge`
 and `BrandLoader` from `components/shared`. Re-exporting rather than
 duplicating means an order badge in the admin table and one on the customer's
 order page can never drift apart.
+
+**`list-controls.tsx` is not in the barrel.** It exports `useListNavigation`,
+a `"use client"` hook, and its callers are themselves client filter
+components that import it by path (`@/components/admin/shared/list-controls`).
+Keeping it out means a Server Component page can pull `PageContainer` from the
+barrel without dragging a client module into its graph.
+
+---
+
+## List pages: pagination and filters are not optional
+
+Every list screen in the console — products, customers, orders — ships with
+paging and with whatever filters the page needs. This is a rule, not a
+per-feature choice, and it has one shape:
+
+**The service** takes `{ search?, page?, …filters }` and returns
+`{ rows, total, page, pageCount }`. The count and the page go out as one
+`$transaction` so the header total and the rows cannot disagree.
+
+**The page** (a Server Component) reads the params off `searchParams`,
+validates them, calls the service, and renders:
+
+```tsx
+<div className="px-4 pt-4">
+  <XFilters … />           {/* "use client" */}
+</div>
+<XTable rows={result.rows} filtered={filtered} />
+<AdminPagination
+  page={result.page}
+  pageCount={result.pageCount}
+  basePath={ROUTES.adminX}
+  params={{ q: search, /* …the other filters */ }}
+/>
+```
+
+**The filter bar** (`x-filters.tsx`, `"use client"`) renders a search
+`<Input>` (applies on submit — navigating per keystroke is a request storm)
+and `<Select>`s (apply on change), all through `useListNavigation`:
+
+```ts
+const nav = useListNavigation(ROUTES.adminX)
+nav.setParams({ category: value || null })   // always resets ?page=
+nav.clearAll()                                // back to the bare route
+```
+
+`useListNavigation` does **no fetching and no caching** — it turns an input
+event into a `router.push` with new query params, and the page re-renders on
+the server. That is the console's answer to "where does the React Query layer
+go": it does not, until a screen has *optimistic* client state
+(drag-to-reorder, edits that must paint before the server replies). A
+URL-driven filter is not that. See
+[`folder-structure.md`](./folder-structure.md).
+
+**The table** takes a `filtered` boolean so an empty result reads as "nothing
+matched" instead of "add your first —".
 
 ### A note on tall dialogs
 
@@ -360,14 +442,25 @@ specific production failure in the server logs.
 2. Replace the scaffold page with a real one:
 
    ```tsx
-   export default async function AdminOrdersPage() {
-     const orders = await getOrders()   // services/order.service.ts
+   export default async function AdminOrdersPage(
+     props: PageProps<"/admin/orders">
+   ) {
+     const sp = await props.searchParams
+     // …parse & validate q / page / your filters off sp…
+     const result = await listOrders({ search, status, page })  // service
 
      return (
        <PageContainer>
          <PageHeader title="الطلبات" description="…" actions={<…/>} />
          <SectionCard title="…" flush>
-           <OrdersTable orders={orders} />
+           <div className="px-4 pt-4"><OrdersFilters … /></div>
+           <OrdersTable orders={result.orders} filtered={filtered} />
+           <AdminPagination
+             page={result.page}
+             pageCount={result.pageCount}
+             basePath={ROUTES.adminOrders}
+             params={{ q: search, status }}
+           />
          </SectionCard>
        </PageContainer>
      )
@@ -375,6 +468,16 @@ specific production failure in the server logs.
    ```
 
 3. Feature components go in `src/components/admin/<feature>/`.
-4. Anything that **writes** goes through a Server Action that re-checks
+4. **If the page is a list, it ships with pagination and filters** — the
+   service returns `{ rows, total, page, pageCount }`, the page renders
+   `<AdminPagination>`, and a `"use client"` `<feature>-filters.tsx` drives
+   `?q=` / your filter params through `useListNavigation`. See
+   [the "List pages" section](#list-pages-pagination-and-filters-are-not-optional)
+   above. This is not optional and not "later" — a list without paging is a
+   bug the day the shop has 30 rows.
+5. Anything that **writes** goes through a Server Action that re-checks
    `isAdmin()` — the layout guard does not run for a Server Action POST. See
    [`admin-access-control.md`](./admin-access-control.md).
+6. A detail page (`[id]/page.tsx`) renders `<BreadcrumbTitle title={…} />` so
+   its last breadcrumb reads the entity's name, not a repeated label or a raw
+   id.
