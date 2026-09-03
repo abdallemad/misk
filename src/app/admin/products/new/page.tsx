@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { BoxesIcon } from "lucide-react"
 
+import { BreadcrumbTitle } from "@/components/admin/layout"
 import { ProductForm } from "@/components/admin/products"
 import { PageContainer, PageHeader } from "@/components/admin/shared"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ export default async function NewProductPage() {
 
   return (
     <PageContainer>
+      <BreadcrumbTitle title="عطر جديد" />
       <PageHeader
         title="عطر جديد"
         description="الاسم والوصف والصور، ثم الأحجام والأسعار."

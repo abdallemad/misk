@@ -33,6 +33,9 @@ import { DeleteProductDialog } from "./delete-product-dialog"
 
 type ProductsTableProps = {
   products: ProductRow[]
+  /** True when a search or filter is in effect, so an empty result reads as
+   *  "nothing matched" rather than "add your first perfume". */
+  filtered?: boolean
 }
 
 /**
@@ -54,7 +57,7 @@ type ProductsTableProps = {
  *
  * See docs/products-feature.md.
  */
-export function ProductsTable({ products }: ProductsTableProps) {
+export function ProductsTable({ products, filtered = false }: ProductsTableProps) {
   const [target, setTarget] = useState<ProductRow | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -70,16 +73,21 @@ export function ProductsTable({ products }: ProductsTableProps) {
           <EmptyMedia variant="icon">
             <PackageIcon />
           </EmptyMedia>
-          <EmptyTitle>لا توجد عطور بعد</EmptyTitle>
+          <EmptyTitle>
+            {filtered ? "لا عطور مطابقة" : "لا توجد عطور بعد"}
+          </EmptyTitle>
           <EmptyDescription>
-            أضف أول عطر بأحجامه وأسعاره ليظهر في المتجر. كل عطر يندرج تحت فئة
-            واحدة، ويُباع بحجم وعبوة أو بالوزن حسب نوعه.
+            {filtered
+              ? "غيّر كلمة البحث أو أزِل بعض عوامل التصفية."
+              : "أضف أول عطر بأحجامه وأسعاره ليظهر في المتجر. كل عطر يندرج تحت فئة واحدة، ويُباع بحجم وعبوة أو بالوزن حسب نوعه."}
           </EmptyDescription>
         </EmptyHeader>
-        <Button variant="gold" render={<Link href={ROUTES.adminProductNew} />}>
-          <PlusIcon aria-hidden="true" />
-          أضف أول عطر
-        </Button>
+        {filtered ? null : (
+          <Button variant="gold" render={<Link href={ROUTES.adminProductNew} />}>
+            <PlusIcon aria-hidden="true" />
+            أضف أول عطر
+          </Button>
+        )}
       </Empty>
     )
   }

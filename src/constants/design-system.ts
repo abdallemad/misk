@@ -10,7 +10,7 @@
  * text, so `bg-${tone}-soft` would compile to nothing.
  */
 
-import type { ProductType } from "@prisma/client"
+import type { OrderStatus, ProductType } from "@prisma/client"
 
 /* -------------------------------------------------------------------------
  * Tones
@@ -62,34 +62,50 @@ export const TONE_TEXT_CLASS: Record<Tone, string> = {
  * Order status
  * ---------------------------------------------------------------------- */
 
-export type OrderStatus =
-  | "PENDING"
-  | "PAID"
-  | "PROCESSING"
-  | "SHIPPED"
-  | "DELIVERED"
-  | "CANCELLED"
-  | "REFUNDED"
+/**
+ * Re-exported from Prisma rather than re-declared, for the same reason
+ * `ProductType` is below: this file owns the *meaning* (which status is which
+ * tone), and the schema owns the *set*. It used to be a hand-written union
+ * with members the `OrderStatus` enum never had (`PAID`, `PROCESSING`,
+ * `REFUNDED`) and missing ones it does (`CONFIRMED`, `IN_PRODUCTION`) — two
+ * vocabularies for one concept, which is the drift this file exists to
+ * prevent. `import type` keeps the query engine out of the client bundle.
+ */
+export type { OrderStatus }
 
 export const ORDER_STATUS_TONE: Record<OrderStatus, Tone> = {
   PENDING: "warning",
-  PAID: "info",
-  PROCESSING: "info",
-  SHIPPED: "gold",
+  CONFIRMED: "info",
+  IN_PRODUCTION: "gold",
+  SHIPPED: "info",
   DELIVERED: "success",
   CANCELLED: "danger",
-  REFUNDED: "neutral",
 }
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  PENDING: "بانتظار الدفع",
-  PAID: "مدفوع",
-  PROCESSING: "قيد التحضير",
+  PENDING: "بانتظار التأكيد",
+  CONFIRMED: "مؤكّد",
+  IN_PRODUCTION: "قيد التحضير",
   SHIPPED: "تم الشحن",
   DELIVERED: "تم التسليم",
   CANCELLED: "ملغي",
-  REFUNDED: "مسترد",
 }
+
+/**
+ * The six statuses in fulfilment order — for a status `<select>` and for
+ * validating one that arrives from the client. Written out as literals and
+ * checked with `satisfies` (the same pattern `constants/catalog.ts` uses for
+ * the product enums) so a new `OrderStatus` member is a compile error here
+ * until it is placed in the sequence deliberately.
+ */
+export const ORDER_STATUSES = [
+  "PENDING",
+  "CONFIRMED",
+  "IN_PRODUCTION",
+  "SHIPPED",
+  "DELIVERED",
+  "CANCELLED",
+] as const satisfies readonly OrderStatus[]
 
 /* -------------------------------------------------------------------------
  * Stock

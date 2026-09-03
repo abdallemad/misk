@@ -687,6 +687,29 @@ they point at belong to the shop.
 
 ---
 
+## Search, filters and pagination
+
+Added after the fact, when the customers and orders consoles needed the same
+thing and the console settled on one pattern for all three — see
+[`folder-structure.md`](./folder-structure.md), the "List pages" rule.
+
+`listProducts` now takes `{ search, categoryId, productType, status, page }`
+and returns `{ products, total, page, pageCount }`; the page reads those from
+`searchParams`, and `products-table.tsx` takes a `filtered` flag so an empty
+result reads as "nothing matched" rather than "add your first perfume".
+`products-filters.tsx` is a `"use client"` bar — a search box (applies on
+submit) plus category / type / status `<Select>`s (apply on change) — that
+calls the shared `useListNavigation` hook to `router.push` new query params.
+
+This is **not** the React Query moment [`folder-structure.md`](./folder-structure.md)
+predicted. The list is still server-rendered on every navigation; the only
+client code is the one component that turns an input event into a
+`router.push`, and there is no client data cache. React Query still earns its
+place only at *optimistic* client state — drag-to-reorder, edits that must
+paint before the server answers.
+
+---
+
 ## What is deliberately not here
 
 **An ingredients *console*.** The product form can create a material, and that
@@ -694,12 +717,6 @@ is enough to build a catalogue with. What it cannot do is rename one across
 thirty products, give it the description the trust panel wants, or retire one
 nobody uses. That is `/admin/ingredients`, with its own delete guard — an
 ingredient in use cannot be removed — and it is the next thing to build.
-
-**Search, filters and pagination.** The table renders every perfume. That is
-correct for a shop with tens of products and wrong at hundreds, and it is the
-first screen in this console with genuine client state — which, per
-[`folder-structure.md`](./folder-structure.md), is when the React Query hook
-layer earns its place.
 
 ---
 

@@ -2,7 +2,11 @@ import type { Metadata } from "next"
 import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
 
-import { AdminHeader, AdminSidebar } from "@/components/admin/layout"
+import {
+  AdminHeader,
+  AdminSidebar,
+  BreadcrumbTitleProvider,
+} from "@/components/admin/layout"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { isAdmin } from "@/services/auth.service"
 
@@ -46,8 +50,12 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     <SidebarProvider defaultOpen={defaultOpen}>
       <AdminSidebar />
       <SidebarInset className="min-w-0">
-        <AdminHeader />
-        {children}
+        {/* Wraps the header *and* the page, so a detail page can register its
+            title (a product name, a customer name) for the last breadcrumb. */}
+        <BreadcrumbTitleProvider>
+          <AdminHeader />
+          {children}
+        </BreadcrumbTitleProvider>
       </SidebarInset>
     </SidebarProvider>
   )

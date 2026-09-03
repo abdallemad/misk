@@ -10,8 +10,15 @@
  * storefront too. Re-exporting rather than duplicating means an order badge
  * in the admin table and one on the customer's order page can never drift
  * apart. See docs/folder-structure.md.
+ *
+ * `list-controls.tsx` (the `useListNavigation` hook) is **not** re-exported
+ * here on purpose: it is `"use client"`, and its callers are themselves
+ * client filter components that import it by path. Keeping it out of this
+ * barrel means a Server Component page can pull `PageContainer` from here
+ * without dragging a client module into the graph.
  */
 
+export { AdminPagination } from "./admin-pagination"
 export { ComingSoon } from "./coming-soon"
 export { PageContainer } from "./page-container"
 export { PageHeader } from "./page-header"
