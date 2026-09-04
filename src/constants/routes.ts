@@ -12,6 +12,11 @@
 export const ROUTES = {
   home: "/",
   shop: "/shop",
+  /** The built storefront catalogue — filter/search/paginate perfumes by
+   *  category. `/shop/*` above is the separate, still-unbuilt path-based
+   *  storefront the docs sketch; `/store` is query-param driven and follows
+   *  the list-page convention. See docs/store-feature.md. */
+  store: "/store",
   cart: "/cart",
   search: "/search",
 
@@ -52,6 +57,18 @@ export type Route = (typeof ROUTES)[keyof typeof ROUTES]
  */
 export function adminProductRoute(id: string): string {
   return `${ROUTES.adminProducts}/${encodeURIComponent(id)}`
+}
+
+/**
+ * One perfume's public page — `/store/<slug>`.
+ *
+ * Slug, not id: this is a shareable storefront URL, and a slug is the thing an
+ * admin typed for exactly that reason (see docs/categories-feature.md). The
+ * slug is `[a-z0-9-]` by the `SLUG_PATTERN` rule, so `encodeURIComponent` is
+ * belt-and-braces — the same stance the admin route helpers take.
+ */
+export function storeProductRoute(slug: string): string {
+  return `${ROUTES.store}/${encodeURIComponent(slug)}`
 }
 
 /**

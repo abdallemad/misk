@@ -4,9 +4,11 @@
 
 - [`business-analysis.md`](./business-analysis.md) — product scope and requirements
 - [`erd.md`](./erd.md) — entity relationships (Category, Product, ProductVariant, Cart, Order, User)
-- [`tech-stack.md`](./tech-stack.md) — Next 16, Clerk auth, Cloudflare R2 (product images), shadcn/Base UI, Prisma, Stripe
+- [`tech-stack.md`](./tech-stack.md) — Next 16, Clerk auth, Cloudinary (product + category images — see `image-uploads.md`), shadcn/Base UI, Prisma, Stripe
 - [`storefront-layout.md`](./storefront-layout.md) — the storefront shell (`(marketing)` header, `(shop)` header + category nav), the shared brand lockup, the cart drawer and the account menu
 - [`landing-page.md`](./landing-page.md) — `/` and `/about`, the Misk brand story and manufacturing story
+- [`store-feature.md`](./store-feature.md) — **built** — `/store` (the public catalogue: browse by category, search, filter by type, sort, page) and `/store/[slug]` (one perfume: gallery, variants + prices, ingredients, two disabled buy buttons). Query-param driven, follows the list-page convention. The `/shop/*` docs below are the separate, still-unbuilt path-based storefront
+- [`image-uploads.md`](./image-uploads.md) — **built** — where a product photo or category picture goes (Cloudinary, via `lib/cloudinary.ts` + `lib/uploads.ts`), and the `public/image.png` default the storefront falls back to
 - [`catalog-feature.md`](./catalog-feature.md) — `/shop`, the flat public perfume listing and its derived filter facets (category, type, size)
 - [`category-feature.md`](./category-feature.md) — `/shop/[category]`, browse by Youth / Women / Men
 - [`product-page.md`](./product-page.md) — `/shop/[category]/[slug]`, the product detail page: gallery, ingredients, and the variant selector that branches by product type (bottle vs. raw oil)
@@ -87,7 +89,19 @@ app/
 │   ├── page.tsx             #   /        — landing-page.md
 │   └── about/                #   /about   — landing-page.md
 │
+├── store/                  #   /store  — built — the public catalogue.
+│   ├── layout.tsx           #   storefront header + footer (StoreHeader/Footer)
+│   ├── loading.tsx          #   skeleton for the catalogue query
+│   ├── page.tsx             #   filter by category / search / type / sort / page
+│   └── [slug]/              #   /store/[slug] — one perfume: gallery, variants
+│       └── page.tsx         #     + prices, ingredients, two disabled buy
+│                            #     buttons — store-feature.md. A plain folder,
+│                            #     same reasoning as admin/: the URL really
+│                            #     is /store
+│
 ├── (shop)/                  # header + category nav — see storefront-layout.md
+│                            #   NOT built yet — the path-based storefront the
+│                            #   docs plan, distinct from /store above
 │   ├── layout.tsx
 │   ├── shop/
 │   │   ├── page.tsx          #   /shop                       — catalog-feature.md
@@ -158,6 +172,10 @@ components/
 │
 ├── marketing/
 │
+├── store/         # built — /store + /store/[slug]: chrome, category chips,
+│                  #   filter bar, product grid + card, product gallery, the
+│                  #   two disabled buy buttons. store-feature.md
+│
 ├── product/
 │
 ├── search/
@@ -194,21 +212,28 @@ callbacks and know nothing about any entity.
 ```text
 shared/
 │
-├── empty-state.tsx
-├── logo-avatar.tsx
-├── pagination.tsx
-├── search-input.tsx
-├── status-badge.tsx        # order status, stock status
+├── pagination.tsx           # built — Prev/Next paging, <Link>-based, RTL,
+│                            #   hidden on one page. Used by /store; the admin
+│                            #   lists still ship their own AdminPagination
+├── use-list-navigation.ts   # built — the "use client" hook every filter bar
+│                            #   uses to router.push new query params. Moved
+│                            #   here from admin/shared/list-controls.tsx,
+│                            #   which now re-exports it
+├── status-badge.tsx         # built — order status, stock status
+├── brand-lockup.tsx  brand-loader.tsx  auth-nav.tsx  theme-*.tsx   # built
+├── empty-state.tsx  logo-avatar.tsx  search-input.tsx              # not built —
+│                            #   /store reuses components/ui/empty.tsx instead
 └── index.ts
 ```
 
-All five are used by **both** the storefront and the admin console.
-`components/admin/shared/index.ts` re-exports them, so admin features keep
-importing from a single path:
+`pagination.tsx` and `use-list-navigation.ts` were promoted here by
+[`store-feature.md`](./store-feature.md) so the storefront catalogue and the
+admin console's filter bars share one implementation:
 
 ```ts
-import { PageContainer, Pagination } from "@/components/admin/shared"  // admin
-import { EmptyState, Pagination } from "@/components/shared"           // storefront
+import { AdminPagination } from "@/components/admin/shared"              // admin (its own copy, for now)
+import { Pagination } from "@/components/shared"                         // storefront
+import { useListNavigation } from "@/components/shared/use-list-navigation"  // both
 ```
 
 ---
@@ -411,6 +436,13 @@ services/
 ├── admin.service.ts       # read-only counts for the /admin overview
 ├── product.service.ts     # built — products-feature.md. listProducts takes
 │                          #   { search, categoryId, productType, status, page }
+│                          #   — the ADMIN work queue (updatedAt order, hidden
+│                          #   rows, order counts)
+├── catalog.service.ts     # built — store-feature.md. The STOREFRONT read
+│                          #   model: listCatalog (sellable only, shopper's
+│                          #   sort) + listCatalogCategories + getStoreProduct
+│                          #   (React cache()'d). A different query in a
+│                          #   different module, as product.service.ts said
 ├── ingredient.service.ts  # built — the raw-material master list
 ├── category.service.ts    # built — categories-feature.md
 ├── customer.service.ts    # built — listCustomers + getCustomer, plus one
@@ -471,15 +503,18 @@ hooks/
 > reasoning in [`categories-feature.md`](./categories-feature.md) — it is a
 > judgement about that feature, not a repeal of the rule.
 >
-> **Search / filter / pagination did not change this.** The products,
-> customers and orders lists all have them, and all three are URL-driven:
-> `?q=` / `?page=` / filter params on `searchParams`, a Server Component that
-> re-runs per navigation, and a `"use client"` filter bar whose only job is to
-> `router.push` new params (`components/admin/shared/list-controls.tsx`).
-> There is no client data cache, so there is nothing for React Query to
-> manage. The layer earns its place at the first screen with *optimistic*
-> client state — drag-to-reorder, an edit that must paint before the server
-> replies — and not before.
+> **Search / filter / pagination did not change this — on the admin *or* the
+> storefront.** The products, customers and orders lists, and now `/store`, all
+> have them, and all are URL-driven: `?q=` / `?page=` / filter params on
+> `searchParams`, a Server Component that re-runs per navigation, and a
+> `"use client"` filter bar whose only job is to `router.push` new params. The
+> hook that does the push, `useListNavigation`, lives at
+> `components/shared/use-list-navigation.ts` and is shared by both surfaces
+> (`components/admin/shared/list-controls.tsx` re-exports it). There is no
+> client data cache, so there is nothing for React Query to manage. The layer
+> earns its place at the first screen with *optimistic* client state —
+> drag-to-reorder, an edit that must paint before the server replies — and not
+> before.
 
 ### Responsibilities
 
@@ -534,9 +569,13 @@ Application libraries and shared clients.
 ```text
 lib/
 │
-├── db.ts        # the Prisma client — import as `import { db } from "@/lib/db"`
-├── uploads.ts   # image storage under public/uploads — categories-feature.md
-└── utils.ts     # `cn()`
+├── db.ts          # the Prisma client — import as `import { db } from "@/lib/db"`
+├── uploads.ts     # image storage — sniff bytes, then hand off to Cloudinary.
+│                  #   saveImage / deleteImage / UnsupportedImageError, unchanged
+│                  #   public surface — image-uploads.md
+├── cloudinary.ts  # the storage client: sign → POST /image/upload · /image/destroy.
+│                  #   server-only, dependency-free (a fetch, not the SDK)
+└── utils.ts       # `cn()`
 ```
 
 In development the client is parked on `globalThis` so `next dev`'s module
@@ -548,7 +587,8 @@ Also belongs here:
 
 - React Query Client
 - Clerk Configuration
-- Cloudflare R2 Configuration (product image gallery uploads)
+- Cloudinary Configuration (product + category image uploads) — **built**,
+  `cloudinary.ts`; see [`image-uploads.md`](./image-uploads.md)
 - Stripe Client
 - Utility Initializers
 
@@ -648,9 +688,13 @@ constants/
 │
 ├── routes.ts          # every path, plus `safeRedirect` / `authCallbackUrl`
 ├── admin-nav.ts       # the /admin sidebar as data — admin-dashboard.md
-├── uploads.ts         # accepted image types + size cap + gallery cap,
-│                      #   shared with the client because lib/uploads.ts
-│                      #   is server-only
+├── uploads.ts         # accepted image types + size cap + gallery cap, and
+│                      #   DEFAULT_PRODUCT_IMAGE (public/image.png). Shared
+│                      #   with the client because lib/uploads.ts is
+│                      #   server-only — image-uploads.md
+├── store.ts           # STORE_SORTS / STORE_SORT_LABEL / DEFAULT_STORE_SORT —
+│                      #   the /store sort vocabulary, client-safe half of
+│                      #   catalog.service.ts — store-feature.md
 ├── catalog.ts         # the four catalog enums, in order, with their
 │                      #   Arabic — products-feature.md
 └── design-system.ts   # tones, order status, stock, category + type accents
@@ -738,24 +782,28 @@ Every feature should follow the same implementation order.
 
 ## List pages ship with pagination and filters
 
-Any admin screen that renders a list of rows (`products`, `customers`,
-`orders`, and anything added later) is built with paging and with whatever
-filters the page needs — from the first commit, not "when it gets slow". A
-list without paging is a bug the day the table has 30 rows.
+Any screen that renders a list of rows — the admin `products`, `customers`,
+`orders`, **and the storefront `/store` catalogue** — is built with paging and
+with whatever filters the page needs, from the first commit, not "when it gets
+slow". A list without paging is a bug the day the table has 30 rows.
 
 The shape is fixed so all list pages look the same:
 
 - **Service:** takes `{ search?, page?, …filters }`, returns
-  `{ rows, total, page, pageCount }`, issues the count and the page as one
-  `$transaction`.
+  `{ rows, total, page, pageCount }`. The admin services issue the count and
+  the page as one `$transaction`; `catalog.service.listCatalog` pulls the
+  whole (bounded) match set in one query and slices in memory, which gives the
+  same "total and rows cannot disagree" property — see
+  [`store-feature.md`](./store-feature.md).
 - **Page (Server Component):** parses/validates the params off `searchParams`,
-  calls the service, renders `<XFilters>` + `<XTable rows filtered>` +
-  `<AdminPagination page pageCount basePath params>`.
+  calls the service, renders `<XFilters>` + the rows + a pagination component
+  (`<AdminPagination>` in the console, the shared `<Pagination>` on `/store`).
 - **`<feature>-filters.tsx` (`"use client"`):** a search `<Input>` (applies on
   submit) and `<Select>`s (apply on change), all through `useListNavigation`
-  (`components/admin/shared/list-controls.tsx`) — which only does
-  `router.push` with new query params. **No React Query, no client cache**:
-  the list is server-rendered on every navigation. See
+  (`components/shared/use-list-navigation.ts`, re-exported from
+  `components/admin/shared/list-controls.tsx`) — which only does `router.push`
+  with new query params. **No React Query, no client cache**: the list is
+  server-rendered on every navigation. See
   [`admin-dashboard.md`](./admin-dashboard.md), "List pages".
 
 ## Detail pages name their own breadcrumb

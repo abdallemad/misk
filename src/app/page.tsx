@@ -28,8 +28,13 @@ import {
   type CategorySlug,
   type ProductType,
 } from "@/constants/design-system"
+import { ROUTES } from "@/constants/routes"
 import { cn } from "@/lib/utils"
 import { formatPrice } from "@/utils/format"
+
+/** The built catalogue lives at `/store`; `/store?category=<slug>` filters it. */
+const storeCategoryHref = (slug: CategorySlug) =>
+  `${ROUTES.store}?category=${slug}`
 
 /**
  * `/` — the landing page.
@@ -109,7 +114,7 @@ function SiteHeader() {
           {CATEGORIES.map((slug) => (
             <Link
               key={slug}
-              href={`/shop/${slug}`}
+              href={storeCategoryHref(slug)}
               className={buttonVariants({ variant: "ghost", size: "sm" })}
             >
               {CATEGORY_ACCENT[slug].label}
@@ -155,7 +160,7 @@ function Hero() {
         </p>
         <div className="mt-9 flex flex-wrap gap-3">
           <Link
-            href="/shop"
+            href={ROUTES.store}
             className={buttonVariants({ variant: "gold", size: "xl" })}
           >
             <ShoppingBagIcon data-icon="inline-start" />
@@ -182,7 +187,7 @@ function CategoryStrip() {
           return (
             <Link
               key={slug}
-              href={`/shop/${slug}`}
+              href={storeCategoryHref(slug)}
               className="group rounded-xl border border-border bg-card p-6 transition-colors duration-300 ease-luxe outline-none hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <span
@@ -211,7 +216,7 @@ function Featured() {
             عطور تبدأ بها
           </h2>
         </div>
-        <Link href="/shop" className={buttonVariants({ variant: "outline" })}>
+        <Link href={ROUTES.store} className={buttonVariants({ variant: "outline" })}>
           كل العطور
         </Link>
       </div>
@@ -297,7 +302,7 @@ function SiteFooter() {
           {CATEGORIES.map((slug) => (
             <Link
               key={slug}
-              href={`/shop/${slug}`}
+              href={storeCategoryHref(slug)}
               className="text-muted-foreground transition-colors hover:text-foreground"
             >
               {CATEGORY_ACCENT[slug].label}

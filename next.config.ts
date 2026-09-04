@@ -30,11 +30,31 @@ import { MAX_GALLERY_IMAGES, MAX_IMAGE_BYTES } from "./src/constants/uploads";
  */
 const UPLOAD_BODY_LIMIT = MAX_IMAGE_BYTES * MAX_GALLERY_IMAGES + 1024 * 1024;
 
+/**
+ * Product and category images live on Cloudinary now (see
+ * `docs/image-uploads.md`), so `next/image` has to be told that
+ * `res.cloudinary.com` is an allowed source. Scoped to this account's cloud —
+ * `/<cloud-name>/**` — so it cannot be pointed at an arbitrary Cloudinary
+ * account. The cloud name is read from the same env var `lib/cloudinary.ts`
+ * reads; `.env` currently spells it `COULDINARY_NAME`.
+ */
+const CLOUDINARY_CLOUD_NAME =
+  process.env.CLOUDINARY_CLOUD_NAME ?? process.env.COULDINARY_NAME ?? "";
+
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: UPLOAD_BODY_LIMIT,
     },
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+        pathname: CLOUDINARY_CLOUD_NAME ? `/${CLOUDINARY_CLOUD_NAME}/**` : "/**",
+      },
+    ],
   },
 };
 

@@ -9,6 +9,8 @@ and the collection of sizes, bottle styles or weights it is bought in.
 - [`categories-feature.md`](./categories-feature.md) — the worked example this is modelled on, and the one it deliberately departs from
 - [`admin-dashboard.md`](./admin-dashboard.md) — the console shell and shared components
 - [`admin-access-control.md`](./admin-access-control.md) — why every action re-checks `isAdmin()`
+- [`image-uploads.md`](./image-uploads.md) — where the gallery goes now (Cloudinary), and the default image
+- [`store-feature.md`](./store-feature.md) — the storefront that renders these perfumes
 - [`misk_business_analysis.md`](./misk_business_analysis.md) — sections 4 and 5, the two product lines
 
 ---
@@ -108,7 +110,8 @@ Unless one has been ordered — see below.
         │
         ├──→ ingredient.service.ts   the raw-material master list
         ├──→ lib/db.ts               Prisma
-        └──→ lib/uploads.ts          the gallery on disk
+        └──→ lib/uploads.ts          the gallery, uploaded to Cloudinary
+                                     (lib/cloudinary.ts) — image-uploads.md
 ```
 
 The schema hangs off to the side because it is the one module both ends
@@ -265,11 +268,15 @@ figure.
 
 ## The gallery
 
-Up to `MAX_GALLERY_IMAGES` (8) photos per perfume, stored by `lib/uploads.ts`
-under `public/uploads` — the same module, the same magic-byte sniffing, and
-the same serverless caveat [`categories-feature.md`](./categories-feature.md)
-documents at length. None of it is repeated here; the difference is only that
-there are several files instead of one.
+Up to `MAX_GALLERY_IMAGES` (8) photos per perfume, uploaded by `lib/uploads.ts`
+to **Cloudinary** — the same module, the same magic-byte sniffing; the only
+difference from a category image is that there are several files instead of
+one. `lib/uploads.ts` used to write to `public/uploads` and
+[`categories-feature.md`](./categories-feature.md) documented at length why
+that broke on serverless; that move is done — see
+[`image-uploads.md`](./image-uploads.md). Nothing in *this* feature changed:
+the service still calls `saveImage` / `deleteImage`, still gets URLs, still
+stores them on `ProductImage.url`.
 
 ### One field for order *and* removal
 
@@ -320,12 +327,14 @@ the `multipart/form-data` boundaries and part headers — the Next.js docs put
 those at 10–20 KB for a typical upload, so it is generous on purpose: being
 over costs nothing, being under rejects a legitimate save.
 
-It is still a real resource decision. The whole body is buffered before the
-action runs, so this is also how much memory one POST can make the server
-hold. Acceptable for an admin-only endpoint that re-checks `isAdmin()`;
-**not** acceptable for a public one. If uploads ever move to a public surface
-they should go straight to R2 with a presigned URL and stop passing through
-the server at all.
+It is still a real resource decision, **and Cloudinary did not change it.**
+The upload now goes to Cloudinary from *inside* the service — the browser
+still POSTs the whole `multipart` body to the Server Action, which still
+buffers it before the action runs. So this is still how much memory one POST
+can make the server hold. Acceptable for an admin-only endpoint that re-checks
+`isAdmin()`; **not** acceptable for a public one. A browser → Cloudinary
+direct upload with a server-signed request would remove this constraint — see
+[`image-uploads.md`](./image-uploads.md), "Extending this".
 
 The gallery field also checks file size at *pick* time and drops anything over
 the per-image limit with a message naming the file. That is a deliberate
@@ -734,5 +743,7 @@ the build until you do the second half, which is the point of it.
 `Ingredient`, which means it belongs on `/admin/ingredients`, not on this
 form. A material's description is the same on every perfume that uses it.
 
-**Moving the gallery to R2** — rewrite `saveImage` and `deleteImage` in
-`lib/uploads.ts`. Nothing in this feature knows where a URL points.
+**Moving the gallery off `public/uploads`** — done. `saveImage` /
+`deleteImage` now upload to Cloudinary (`lib/cloudinary.ts`), and nothing in
+this feature knew where a URL pointed, so nothing here changed. That is the
+worked proof of the claim. See [`image-uploads.md`](./image-uploads.md).
