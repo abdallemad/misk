@@ -1,9 +1,8 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
-import { StoreBuyActions } from "@/components/store/store-buy-actions"
+import { AddToCartForm } from "@/components/store/add-to-cart-form"
 import { StoreProductGallery } from "@/components/store/store-product-gallery"
-import { StockBadge } from "@/components/shared/status-badge"
 import { PRODUCT_TYPE_LABEL } from "@/constants/catalog"
 import { categoryAccent } from "@/constants/design-system"
 import { ROUTES } from "@/constants/routes"
@@ -19,10 +18,9 @@ import { formatPrice } from "@/utils/format"
  * `notFound()` on a stale link to a retired perfume — `getStoreProduct`
  * applies the same sellability gate as the grid.
  *
- * The variant list is **display-only**: a shopper sees every size / weight and
- * its price, but the picker that turns one into a cart line is its own feature
- * (docs/product-page.md, docs/cart-feature.md). `StoreBuyActions` renders the
- * two buy buttons disabled until then.
+ * The buy box is `AddToCartForm` — the `<select>` for the perfume's
+ * size/weight options, a quantity stepper, and «اشترِ الآن» / «أضف إلى
+ * السلة». See docs/cart-feature.md.
  */
 export async function generateMetadata(props: PageProps<"/store/[slug]">) {
   const { slug } = await props.params
@@ -107,39 +105,7 @@ export default async function StoreProductPage(
             {product.description}
           </p>
 
-          <StoreBuyActions outOfStock={product.totalStock === 0} />
-
-          <section className="rounded-xl border border-border">
-            <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">
-              الأحجام والأسعار
-            </h2>
-            <ul className="divide-y divide-border">
-              {product.variants.map((variant) => (
-                <li
-                  key={variant.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{variant.label}</p>
-                    {variant.oilGrade ? (
-                      <p className="text-xs text-muted-foreground">
-                        {variant.oilGrade}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <StockBadge stock={variant.stock} />
-                    <span
-                      className="text-sm font-medium tabular-nums"
-                      data-numeric
-                    >
-                      {formatPrice(variant.price)}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <AddToCartForm variants={product.variants} />
 
           {product.ingredients.length > 0 ? (
             <section className="rounded-xl bg-secondary/40 p-4">

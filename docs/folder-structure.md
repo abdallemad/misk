@@ -7,13 +7,13 @@
 - [`tech-stack.md`](./tech-stack.md) — Next 16, Clerk auth, Cloudinary (product + category images — see `image-uploads.md`), shadcn/Base UI, Prisma, Stripe
 - [`storefront-layout.md`](./storefront-layout.md) — the storefront shell (`(marketing)` header, `(shop)` header + category nav), the shared brand lockup, the cart drawer and the account menu
 - [`landing-page.md`](./landing-page.md) — `/` and `/about`, the Misk brand story and manufacturing story
-- [`store-feature.md`](./store-feature.md) — **built** — `/store` (the public catalogue: browse by category, search, filter by type, sort, page) and `/store/[slug]` (one perfume: gallery, variants + prices, ingredients, two disabled buy buttons). Query-param driven, follows the list-page convention. The `/shop/*` docs below are the separate, still-unbuilt path-based storefront
+- [`store-feature.md`](./store-feature.md) — **built** — `/store` (the public catalogue: browse by category, search, filter by type, sort, page) and `/store/[slug]` (one perfume: gallery, the Add to Cart buy box, ingredients). Query-param driven, follows the list-page convention. The `/shop/*` docs below are the separate, still-unbuilt path-based storefront
 - [`image-uploads.md`](./image-uploads.md) — **built** — where a product photo or category picture goes (Cloudinary, via `lib/cloudinary.ts` + `lib/uploads.ts`), and the `public/image.png` default the storefront falls back to
 - [`catalog-feature.md`](./catalog-feature.md) — `/shop`, the flat public perfume listing and its derived filter facets (category, type, size)
 - [`category-feature.md`](./category-feature.md) — `/shop/[category]`, browse by Youth / Women / Men
 - [`product-page.md`](./product-page.md) — `/shop/[category]/[slug]`, the product detail page: gallery, ingredients, and the variant selector that branches by product type (bottle vs. raw oil)
 - [`search-feature.md`](./search-feature.md) — `/search`, name/description search across perfumes
-- [`cart-feature.md`](./cart-feature.md) — `/cart` and Add to cart: variant-aware line items, and why the same product can appear twice with two different sizes
+- [`cart-feature.md`](./cart-feature.md) — **built** — `/cart` and Add to Cart from `/store`. Cart-only: no checkout yet, and the cart is a cookie, not a `Cart` table — the document explains why
 - [`checkout-orders-feature.md`](./checkout-orders-feature.md) — checkout and `/account/orders`: capturing a price + variant snapshot at time of purchase
 - [`payments-feature.md`](./payments-feature.md) — Stripe Checkout and `POST /api/webhook`: the only route handler in the app
 - [`auth-callback.md`](./auth-callback.md) — `/auth-callback`, the sign-in landing strip that mirrors the Clerk user into the `User` table
@@ -93,15 +93,18 @@ app/
 │   ├── layout.tsx           #   storefront header + footer (StoreHeader/Footer)
 │   ├── loading.tsx          #   skeleton for the catalogue query
 │   ├── page.tsx             #   filter by category / search / type / sort / page
-│   └── [slug]/              #   /store/[slug] — one perfume: gallery, variants
-│       └── page.tsx         #     + prices, ingredients, two disabled buy
-│                            #     buttons — store-feature.md. A plain folder,
-│                            #     same reasoning as admin/: the URL really
-│                            #     is /store
+│   └── [slug]/              #   /store/[slug] — one perfume: gallery, the
+│       └── page.tsx         #     buy box (AddToCartForm), ingredients —
+│                            #     store-feature.md. A plain folder, same
+│                            #     reasoning as admin/: the URL really is /store
+│
+├── cart/                   #   /cart — built — cart-feature.md. Shares the
+│   ├── layout.tsx           #   storefront chrome with store/ (its own
+│   └── page.tsx             #   layout, not nested — same reasoning as store/)
 │
 ├── (shop)/                  # header + category nav — see storefront-layout.md
 │                            #   NOT built yet — the path-based storefront the
-│                            #   docs plan, distinct from /store above
+│                            #   docs plan, distinct from /store and /cart above
 │   ├── layout.tsx
 │   ├── shop/
 │   │   ├── page.tsx          #   /shop                       — catalog-feature.md
@@ -110,7 +113,6 @@ app/
 │   │       └── [slug]/
 │   │           └── page.tsx  #   /shop/[category]/[slug]      — product-page.md
 │   ├── search/                #   /search                     — search-feature.md
-│   ├── cart/                  #   /cart                       — cart-feature.md
 │   └── account/
 │       ├── orders/            #   /account/orders + [orderNumber] — checkout-orders-feature.md
 │       └── profile/           #   /account/profile
@@ -172,15 +174,19 @@ components/
 │
 ├── marketing/
 │
-├── store/         # built — /store + /store/[slug]: chrome, category chips,
-│                  #   filter bar, product grid + card, product gallery, the
-│                  #   two disabled buy buttons. store-feature.md
+├── store/         # built — /store + /store/[slug] + /cart's body: chrome,
+│                  #   category chips, filter bar, product grid + card,
+│                  #   product gallery, AddToCartForm, StoreCardActions,
+│                  #   cart-content.tsx + cart-line-item.tsx + clear-cart-
+│                  #   button.tsx. store-feature.md, cart-feature.md — see
+│                  #   the "cart/" note below for why the cart UI lives here
+│                  #   rather than in a separate components/cart/
 │
 ├── product/
 │
 ├── search/
 │
-├── cart/
+├── cart/          # NOT built — see the note under this heading below
 │
 ├── orders/
 │
@@ -240,10 +246,14 @@ import { useListNavigation } from "@/components/shared/use-list-navigation"  // 
 
 ### cart/
 
-`AddToCartButton` — renders differently depending on product type: it opens a
-size + bottle-style picker for alcohol-based perfumes, and a weight picker for
-raw oil — and `CartView`, `CartLineItem`. See
-[`cart-feature.md`](./cart-feature.md).
+**Empty — the built cart's components live in `components/store/` instead.**
+This folder sketched `AddToCartButton`, `CartView`, `CartLineItem` before the
+feature existed. The picker turned out to be `AddToCartForm`'s `<select>`
+(one control does what a size-vs-weight branching picker was going to), and
+`CartView`/`CartLineItem` became `cart-content.tsx` / `cart-line-item.tsx` —
+kept beside the rest of the storefront rather than split into a same-purpose
+sibling folder, since `/cart` is one more storefront page, not a separate
+surface. See [`cart-feature.md`](./cart-feature.md).
 
 ---
 
@@ -410,7 +420,10 @@ actions/
 ├── order/         # built — update-order-status.ts. The orders console's one
 │                  #   write — orders-feature.md
 ├── search/
-└── cart/
+└── cart/          # built — add-to-cart.ts, update-cart-item.ts,
+                   #   remove-cart-item.ts, clear-cart.ts. Public — no
+                   #   isAdmin() — and plain-argument functions, not
+                   #   useActionState — cart-feature.md
 ```
 
 ### Responsibilities
@@ -422,6 +435,10 @@ actions/
 - Return safe responses
 
 Server Actions should not contain business logic.
+
+`actions/cart/*` is the one group here with no `isAdmin()` check — every
+other action folder gates on it because everything else in the console is
+admin-only. The cart is the first *public* write in the app.
 
 ---
 
@@ -451,7 +468,12 @@ services/
 ├── order.service.ts       # built — listOrders + getOrder + updateOrderStatus.
 │                          #   Reads-first; does not touch stock — orders-feature.md
 ├── search.service.ts
-├── cart.service.ts
+├── cart.service.ts        # built — getCart, getCartCount, addToCart,
+│                          #   updateCartItem, removeCartItem, clearCart.
+│                          #   Reads/writes a cookie via lib/cart.ts, not
+│                          #   Prisma directly for the cart's own state —
+│                          #   still resolves every line against the database
+│                          #   on every call. No Cart table — cart-feature.md
 └── payment.service.ts
 ```
 
@@ -515,6 +537,17 @@ hooks/
 > earns its place at the first screen with *optimistic* client state —
 > drag-to-reorder, an edit that must paint before the server replies — and not
 > before.
+>
+> **The cart was the real temptation, and it still did not pull this in.**
+> Add/update/remove is exactly the "optimistic client state" case above — the
+> first one in the app. `cart-feature.md` explains the call at length; the
+> short version is that every cart control calls its Server Action directly
+> from a plain `onClick` inside `useTransition` (the same shape
+> `order-status-control.tsx` already uses), with a `Spinner` on the one button
+> pressed rather than a client-cached, optimistically-updated row. There is
+> still no `use-cart.ts` and no `@tanstack/react-query` dependency. The day a
+> cart edit has to *paint* before the server confirms it, this is the file
+> that gets written.
 
 ### Responsibilities
 
@@ -536,7 +569,11 @@ Zod validation schemas.
 schemas/
 │
 ├── category.schema.ts   # built — rules, FormData adapter, form-state type
-└── product.schema.ts    # built — the same, plus the keyed variant rows
+├── product.schema.ts    # built — the same, plus the keyed variant rows
+└── cart.schema.ts       # built — the cart cookie's shape (parse/serialize)
+                         #   + the add/update mutation payloads. No FormData
+                         #   adapter — these come from a button, not a form.
+                         #   cart-feature.md
 ```
 
 Examples:
@@ -555,7 +592,7 @@ Examples:
 > `parseProductForm` in the browser before it dispatches, and the Server
 > Action run the *same function* on what arrives — one definition of valid,
 > enforced twice, with no client copy to drift.
-- Cart Item Schema
+- Cart Item Schema — built, `cart.schema.ts`
 - Checkout Schema
 
 Shared between forms and server actions whenever possible.
@@ -575,6 +612,9 @@ lib/
 │                  #   public surface — image-uploads.md
 ├── cloudinary.ts  # the storage client: sign → POST /image/upload · /image/destroy.
 │                  #   server-only, dependency-free (a fetch, not the SDK)
+├── cart.ts        # built — readCartCookie / writeCartCookie, and nothing
+│                  #   else. server-only; writes only work from a Server
+│                  #   Action — cart-feature.md
 └── utils.ts       # `cn()`
 ```
 
@@ -627,7 +667,10 @@ Core models (see [`erd.md`](./erd.md) for the full diagram):
   nullable), bottleStyle (`LUXURY` | `REGULAR`, nullable), oilWeight (`G_5` |
   `G_8` | `G_12`, nullable), oilGrade, sku, price (`Decimal(10,2)`), stock,
   isActive
-- `Cart` / `CartItem` — cartId, variantId, quantity
+- `Cart` / `CartItem` — **not built.** The cart is a signed `httpOnly` cookie
+  instead (`{ variantId, quantity }` per line), not a table — see
+  [`cart-feature.md`](./cart-feature.md) for why, and for the point at which
+  this changes (checkout).
 - `Order` — userId, status (`OrderStatus`, six members), totalPrice, plus a
   **shipping-address snapshot** (`shippingName` / `shippingPhone` /
   `shippingLine1` / `shippingLine2` / `shippingCity` / `shippingGovernorate` /
@@ -695,6 +738,9 @@ constants/
 ├── store.ts           # STORE_SORTS / STORE_SORT_LABEL / DEFAULT_STORE_SORT —
 │                      #   the /store sort vocabulary, client-safe half of
 │                      #   catalog.service.ts — store-feature.md
+├── cart.ts            # MAX_LINE_QUANTITY / MAX_CART_LINES — the cart's
+│                      #   limits, shared by the stepper, the schema and the
+│                      #   service — cart-feature.md
 ├── catalog.ts         # the four catalog enums, in order, with their
 │                      #   Arabic — products-feature.md
 └── design-system.ts   # tones, order status, stock, category + type accents
@@ -863,6 +909,19 @@ Prisma
 
 Database
 ```
+
+> **This sketch predates the built feature and describes the future `/shop`
+> path, not the `/store` one that exists today.** The real Add to Cart
+> (`docs/cart-feature.md`) differs in three ways this document's own rules
+> already anticipated: the route is `app/store/[slug]/page.tsx`, not
+> `app/(shop)/shop/…`; there is no `variant-selector.tsx` — a `<select>`
+> inside `AddToCartForm` does the picking, because a perfume's options turned
+> out to be one control, not a component; and the chain ends at a cookie via
+> `lib/cart.ts`, not at `Prisma` — there is no `Cart` table yet, and
+> `hooks/use-cart.ts` was never written, because the cart's writes go through
+> a plain `useTransition` call to the Server Action, the same shape every
+> other single-value write in this app already uses. `cart-feature.md`
+> explains each departure in full.
 
 ---
 

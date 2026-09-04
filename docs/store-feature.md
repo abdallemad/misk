@@ -10,6 +10,7 @@ search by name, narrow by product type, sort, and page through the result.
 - [`products-feature.md`](./products-feature.md) — the admin CRUD that fills this catalogue; the note there that predicted a separate storefront query
 - [`categories-feature.md`](./categories-feature.md) — the segments the chips filter by
 - [`image-uploads.md`](./image-uploads.md) — Cloudinary URLs, and the `image.png` fallback the cards use
+- [`cart-feature.md`](./cart-feature.md) — **built** — `/cart` and Add to Cart, which this document's buy box and card actions call into
 - [`misk_business_analysis.md`](./misk_business_analysis.md) — section 7, "category navigation: Youth / Women / Men"
 
 ---
@@ -81,14 +82,19 @@ surfaces.
    ├── store-product-grid.tsx     Server — the grid, or the empty state
    ├── store-product-card.tsx     Server — one perfume in the grid, a <Link>
    ├── store-product-gallery.tsx  Client — main image + thumbnail swap
-   └── store-buy-actions.tsx      Server — the two buy buttons, disabled;
-                                  page size + card size
+   ├── add-to-cart-form.tsx       Client — the product page's <select> + buy
+   └── store-card-actions.tsx     Client — the catalogue card's quick-add
         │
         ↓
   services/catalog.service.ts  listCatalog() · listCatalogCategories() · getStoreProduct()
         │
         └──→ lib/db.ts         Prisma
 ```
+
+`add-to-cart-form.tsx` and `store-card-actions.tsx` are the two places a
+shopper adds to the cart — see [`cart-feature.md`](./cart-feature.md), which
+also documents why the *reads* below stay in this feature's own service while
+those two components call into `actions/cart/`.
 
 Reads skip the action layer — the same documented exception the whole admin
 console takes for its lists: the grid *is* the page, it is read-only, and it
@@ -230,8 +236,9 @@ enforces for the client controls).
 
 `store-product-card.tsx` shows the cover image, the category + type eyebrow,
 the name, a two-line description clamp, the "from" price, a stock badge, and —
-in a footer — the same two disabled buy buttons the product page carries
-(`StoreBuyActions variant="card"`).
+in a footer — `StoreCardActions`: a quick-add «أضف إلى السلة» plus a
+permanently disabled «اشترِ الآن». See
+[`cart-feature.md`](./cart-feature.md).
 
 **Everything above the footer is one `<Link>` to `/store/[slug]`; the buttons
 are not.** Interactive content cannot nest inside an `<a>`, and the buttons
@@ -273,29 +280,24 @@ column, top to bottom:
 | Breadcrumb | `المتجر / <category> / <name>`; the first two are links, the category one filters the grid |
 | Heading | category (link) · type eyebrow, the name as `<h1>`, the "from" price |
 | Description | the full `Product.description` — required and NOT NULL, so always present |
-| **Buy actions** | `StoreBuyActions` — see below |
-| الأحجام والأسعار | every active variant: its label, its grade if any, a stock badge, its price. **Display-only** — no radio, no picker |
+| **Buy box** | `AddToCartForm` — the options select, a quantity stepper, buy now (disabled) / add to cart (live) |
 | الجودة والمكوّنات | the ingredient list with notes, only when the perfume has any (the panel [`misk_business_analysis.md`](./misk_business_analysis.md) §6 asks for) |
 
-### `StoreBuyActions` — two buttons, both disabled
+### `AddToCartForm` replaces the old read-only variant list
 
-«اشترِ الآن» and «أضف إلى السلة» render **disabled**. One component, two sizes:
+«اشترِ الآن» and «أضف إلى السلة» work very differently now. One `<select>` (`variantItems`) shows every
+option's label, grade and price — "نفد المخزون" appended, and the `<option>`
+itself disabled, for one with none — so it is the picker *and* the price list
+at once. A quantity stepper follows, capped at
+`min(selected.stock, MAX_LINE_QUANTITY)`.
 
-- `variant="page"` (default) — full-size, side-by-side on `sm`, with a line
-  under them saying why (*"الشراء غير متاح بعد — السلة والدفع قيد الإنشاء"*, or
-  a stock message when every variant is at zero).
-- `variant="card"` — small, stacked, no caption — rendered in every catalogue
-  card's footer so the buy affordance is one click away from the grid, not
-  buried on the detail page.
-
-Disabled rather than hidden, on purpose: the buttons tell a shopper this is a
-real product they will be able to buy, without pretending it works today. The
-cart and checkout are their own features (`cart-feature.md` /
-`checkout-orders-feature.md` in `folder-structure.md`); when they land, this
-component gains the variant-to-add and an `onClick` and stops being a static
-server component. The variant list on the product page becomes the picker at
-the same time — today it only *shows* the options because choosing one has
-nowhere to go.
+**«اشترِ الآن» is disabled unconditionally; «أضف إلى السلة» calls
+`addToCartAction`.** See [`cart-feature.md`](./cart-feature.md) for the full
+reasoning — the short version is that "buy now" has to lead to a checkout
+that does not exist yet, and an earlier version disabling both off one shared
+`pending` flag made *both* buttons flash a spinner when only one was pressed.
+The two are independent now: «اشترِ الآن» is never wired to the transition at
+all, and «أضف إلى السلة» owns the only `Spinner` in the component.
 
 ### The gallery
 
@@ -339,10 +341,11 @@ than writing `?sort=newest`, so the canonical catalogue URL stays clean.
 | `…/store-category-nav.tsx` | Server — the category chips, plain `<Link>`s |
 | `…/store-filters.tsx` | Client — search + type + sort, over `useListNavigation` |
 | `…/store-product-grid.tsx` | Server — the grid + the "nothing matched" empty state |
-| `…/store-product-card.tsx` | Server — one perfume in the grid: a `<Link>` (image → price) plus a footer with the two disabled buy buttons |
+| `…/store-product-card.tsx` | Server — one perfume in the grid: a `<Link>` (image → price) plus a `StoreCardActions` footer |
 | `…/store-product-gallery.tsx` | Client — main image + thumbnail swap |
-| `…/store-buy-actions.tsx` | Server — «اشترِ الآن» + «أضف إلى السلة», disabled; `variant="page"` on the detail page, `variant="card"` in every grid card |
-| `src/services/catalog.service.ts` | `listCatalog` + `listCatalogCategories` + `getStoreProduct` |
+| `…/add-to-cart-form.tsx` | Client — the product page's buy box; see `cart-feature.md` |
+| `…/store-card-actions.tsx` | Client — the catalogue card's quick-add; see `cart-feature.md` |
+| `src/services/catalog.service.ts` | `listCatalog` + `listCatalogCategories` + `getStoreProduct`; `StoreProductCard.defaultVariantId` |
 | `src/constants/store.ts` | `STORE_SORTS`, `STORE_SORT_LABEL`, `DEFAULT_STORE_SORT` — client-safe |
 | `src/components/shared/pagination.tsx` | The shared `<Pagination>` (new) |
 | `src/components/shared/use-list-navigation.ts` | `useListNavigation`, moved here from `admin/shared` |
@@ -353,15 +356,10 @@ than writing `?sort=newest`, so the canonical catalogue URL stays clean.
 
 ## What is deliberately not here
 
-**A working cart and checkout.** The two buy buttons on the product page are
-**disabled** — the picker, the cart line, the `/cart` route and Stripe are
-`cart-feature.md` / `checkout-orders-feature.md`. The variant list on the
-product page becomes the picker when the cart exists; today it only shows the
-options.
-
-**A variant selector that updates the price.** Same reason — a selector with
-no "add" to follow it is a control that does nothing. The list is the honest
-shape until then.
+**Checkout.** `/cart` (built — see [`cart-feature.md`](./cart-feature.md))
+and Add to Cart are done; placing an order — cash on delivery, an `Order` row
+— is not. «اشترِ الآن» stays disabled everywhere and `/cart`'s own confirm
+button is disabled too, until `checkout-orders-feature.md` is built.
 
 **Merging `/store` and `/shop`.** `/shop/[category]/[slug]` is the path-based
 storefront the older docs plan. `/store` is the list-convention catalogue the

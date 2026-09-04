@@ -1,6 +1,7 @@
 /**
- * The `/store` storefront's building blocks, behind one import path — same
- * convention the admin feature folders follow. See docs/store-feature.md.
+ * The `/store` (and `/cart`) storefront's building blocks, behind one import
+ * path — same convention the admin feature folders follow. See
+ * docs/store-feature.md and docs/cart-feature.md.
  */
 
 export { StoreHeader, StoreFooter } from "./store-chrome"
@@ -9,4 +10,9 @@ export { StoreFilters } from "./store-filters"
 export { StoreProductGrid } from "./store-product-grid"
 export { StoreProductCard } from "./store-product-card"
 export { StoreProductGallery } from "./store-product-gallery"
-export { StoreBuyActions } from "./store-buy-actions"
+export { StoreCardActions } from "./store-card-actions"
+export { AddToCartForm } from "./add-to-cart-form"
+export { CartContent } from "./cart-content"
+export { CartLineItem } from "./cart-line-item"
+export { ClearCartButton } from "./clear-cart-button"
+
