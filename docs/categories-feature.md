@@ -8,6 +8,7 @@ Admin CRUD for the audience segments a shopper browses by — شبابي / نس�
 - [`folder-structure.md`](./folder-structure.md) — the layer architecture this follows
 - [`admin-dashboard.md`](./admin-dashboard.md) — the console shell and shared components
 - [`admin-access-control.md`](./admin-access-control.md) — why every action re-checks `isAdmin()`
+- [`image-uploads.md`](./image-uploads.md) — where the category image goes now (Cloudinary)
 - [`misk_business_analysis.md`](./misk_business_analysis.md) — section 3, the segments themselves
 
 ---
@@ -160,7 +161,8 @@ substitution.
   services/category.service.ts           every rule about categories
         │
         ├──→ lib/db.ts                   Prisma
-        └──→ lib/uploads.ts              the image on disk
+        └──→ lib/uploads.ts              the image, uploaded to Cloudinary
+                                         (lib/cloudinary.ts) — image-uploads.md
 ```
 
 ### Where React Query would have gone
@@ -222,51 +224,51 @@ a product is filed under the segment between the count and the delete.
 
 ## Images
 
-Category pictures are written to `public/uploads` and stored on the row as a
-`/uploads/<name>` URL. `lib/uploads.ts` is the only module that touches the
-filesystem, and it is `server-only`.
+Category pictures are uploaded to **Cloudinary** by `lib/uploads.ts` and stored
+on the row as the CDN `secure_url`. That module is the only one that touches
+storage, and it is `server-only`; the low-level signed calls live in
+`lib/cloudinary.ts`. See [`image-uploads.md`](./image-uploads.md) — this
+section keeps only the parts specific to a *category* image.
 
 ### Ordering, because failures are asymmetric
 
-The file is written **before** the row, and the old file is deleted **after**
+The image is uploaded **before** the row, and the old one is deleted **after**
 the row commits:
 
 | Step | Why that order |
 | --- | --- |
-| Save the new file first | A row pointing at a file that failed to save renders a broken image on the storefront. |
-| Then write the row | If the row is rejected, the just-saved file is deleted explicitly — an orphaned file costs disk, and nothing else. |
-| Delete the old file last, and only if it actually changed | Unlinking first would destroy the live image on a rollback. Unlinking unconditionally would delete the picture of a category whose name was the only thing that changed. |
+| Upload the new image first | A row pointing at an upload that failed renders a broken image on the storefront. |
+| Then write the row | If the row is rejected, the just-uploaded asset is deleted explicitly — an orphan costs a little Cloudinary storage, and nothing else. |
+| Delete the old asset last, and only if it actually changed | Deleting first would destroy the live image on a rollback. Deleting unconditionally would remove the picture of a category whose name was the only thing that changed. |
 
 Cleanup never throws. The row is already correct by the time it runs, and
-failing a successful update because a stale JPEG could not be unlinked is the
+failing a successful update because a stale asset could not be removed is the
 wrong trade.
 
 ### The type is sniffed, not believed
 
 `file.type` and `file.name` both come from the browser and are trivially
-spoofed on a direct POST to the action. So `saveImage` reads the magic bytes,
-derives the extension from **that**, and builds the stored filename entirely
-out of values it chose itself — a timestamp and 8 random bytes. Nothing
-attacker-controlled reaches the filesystem, which rules out traversal
-(`../`), double extensions (`x.png.html`) and collisions between two admins
-both uploading `rose.jpg`.
+spoofed on a direct POST to the action. So `saveImage` reads the magic bytes
+and hands Cloudinary the content type it *found*, not the one claimed — and an
+upload that is not one of the four supported image formats is rejected here,
+before it reaches the API, as `UnsupportedImageError`. The asset's `public_id`
+is Cloudinary's own random one; nothing attacker-controlled reaches the stored
+name.
 
-`deleteImage` ignores anything that is not one of our own `/uploads/` URLs, so
-a hand-edited `imageUrl` of `../../.env` deletes nothing.
+`deleteImage` ignores anything that is not one of our own `res.cloudinary.com`
+URLs, so a hand-edited `imageUrl` — or a legacy `/uploads/...` path from before
+this change — deletes nothing.
 
-### The caveat worth knowing
+### The caveat that used to be here is resolved
 
-**`public/uploads` is the right answer for local development and a
-long-lived VPS or container, and the wrong one for a serverless deploy.** On
-Vercel or Lambda the bundle is read-only and each invocation gets a fresh
-container, so an upload written on one request is gone by the next.
-`tech-stack.md` names Cloudflare R2 as the production target — swapping to it
-is a change to `saveImage` and `deleteImage` and nothing else, because
-nothing above the service layer knows where a URL points.
-
-Uploads are also **not in git** (`.gitignore` keeps `public/uploads/*` and the
-`.gitkeep`), so a fresh clone has categories whose `imageUrl` points at
-nothing.
+Earlier versions of this document warned at length that `public/uploads` "is
+the wrong one for a serverless deploy" — read-only bundle, fresh container per
+invocation, uploads gone by the next request. **Cloudinary removes that
+caveat**: the bytes leave the server on the same request, and the stored URL
+is a CDN URL that survives a redeploy. There is no `.gitkeep`, no
+`.gitignore` entry, and a fresh clone's seeded categories still carry
+`imageUrl = null` only because [`database-seeding.md`](./database-seeding.md)
+chooses not to seed images, not because the files are missing.
 
 ---
 
@@ -369,8 +371,9 @@ guard doing its job.
 | `src/actions/category/delete-category.ts` | Delete |
 | `src/schemas/category.schema.ts` | Zod rules, FormData adapter, form-state type |
 | `src/services/category.service.ts` | Every rule about categories |
-| `src/lib/uploads.ts` | Image storage — `server-only` |
-| `src/constants/uploads.ts` | The limits, shared with the client |
+| `src/lib/uploads.ts` | Sniff bytes → `saveImage` / `deleteImage` — `server-only` |
+| `src/lib/cloudinary.ts` | The signed Cloudinary calls — `server-only`; `image-uploads.md` |
+| `src/constants/uploads.ts` | The limits + `DEFAULT_PRODUCT_IMAGE`, shared with the client |
 | `src/utils/slug.ts` | The URL-segment rule, shared with products |
 | `scripts/seed-categories.mts` | The three founding segments |
 
@@ -409,5 +412,6 @@ TypeScript will type the result as present, and an unknown slug hands
 **Drag-to-reorder** — this is the one change that would justify the React
 Query layer, because optimistic reordering is real client state.
 
-**Moving images to R2** — rewrite `saveImage` and `deleteImage`. Nothing else
-should need to change.
+**Moving images off local disk** — done. `saveImage` / `deleteImage` upload to
+Cloudinary now, and nothing else in this feature changed. See
+[`image-uploads.md`](./image-uploads.md).

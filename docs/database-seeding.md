@@ -101,14 +101,17 @@ a hard exit before the first write.
 It also prints the `DATABASE_URL` host on every run, so a misaimed `.env` is
 visible in the first line of output rather than discovered later.
 
-### It creates no image files
+### It uploads no images
 
-`public/uploads` is per-environment and not in git (see
-[`categories-feature.md`](./categories-feature.md)), and on a serverless deploy
-it is not writable at all. Seeded categories and products therefore have
-`imageUrl = null` and no `ProductImage` rows. The admin tables already render a
-placeholder tile for that, and it keeps the script from importing
-`lib/uploads.ts`, which is `server-only`.
+Seeded categories and products have `imageUrl = null` and no `ProductImage`
+rows — a deliberate choice, not a limitation. Images now go to Cloudinary
+(`lib/uploads.ts` → `lib/cloudinary.ts`, see
+[`image-uploads.md`](./image-uploads.md)), so the old reason ("`public/uploads`
+is not writable on serverless") is gone; the reasons that remain are that the
+script would have to hit an external API on every run, ship image bytes in the
+repo, and import a `server-only` module. The admin tables render a placeholder
+tile for a missing image, and the `/store` storefront falls back to
+`public/image.png` (`DEFAULT_PRODUCT_IMAGE`).
 
 If you want pictures on the seeded catalog, add them through the admin console
 after seeding — that path is real and tested.

@@ -251,7 +251,7 @@ import { PageContainer, PageHeader, SectionCard } from "@/components/admin/share
 | `PageHeader` | Title + one line of context + the page's actions |
 | `SectionCard` | One titled block — form section, stats panel, table wrapper |
 | `StatTile` | One number on the overview |
-| `AdminPagination` | Prev / next paging for a list page — Server Component, `<Link>`-based, carries the active filters through, hidden on a single page |
+| `AdminPagination` | Prev / next paging for a list page — Server Component, `<Link>`-based, carries the active filters through, hidden on a single page. The storefront's `/store` uses a generic twin, `components/shared/pagination.tsx` (`<Pagination>`); consolidating the two is a pending cleanup |
 | `ComingSoon` | Scaffold body for a section not built yet |
 
 The barrel also re-exports `StatusBadge`, `OrderStatusBadge`, `StockBadge`
@@ -259,11 +259,14 @@ and `BrandLoader` from `components/shared`. Re-exporting rather than
 duplicating means an order badge in the admin table and one on the customer's
 order page can never drift apart.
 
-**`list-controls.tsx` is not in the barrel.** It exports `useListNavigation`,
-a `"use client"` hook, and its callers are themselves client filter
-components that import it by path (`@/components/admin/shared/list-controls`).
-Keeping it out means a Server Component page can pull `PageContainer` from the
-barrel without dragging a client module into its graph.
+**`list-controls.tsx` is not in the barrel.** It re-exports `useListNavigation`
+— a `"use client"` hook that now lives at
+`components/shared/use-list-navigation.ts`, so the storefront catalogue's
+filter bar can share it (see [`store-feature.md`](./store-feature.md)). Admin
+filter components still import it by path
+(`@/components/admin/shared/list-controls`), unchanged. Keeping it out of the
+barrel means a Server Component page can pull `PageContainer` from the barrel
+without dragging a client module into its graph.
 
 ---
 
@@ -271,7 +274,9 @@ barrel without dragging a client module into its graph.
 
 Every list screen in the console — products, customers, orders — ships with
 paging and with whatever filters the page needs. This is a rule, not a
-per-feature choice, and it has one shape:
+per-feature choice, and it has one shape. The storefront `/store` catalogue
+follows the same shape outside `/admin` — see
+[`store-feature.md`](./store-feature.md).
 
 **The service** takes `{ search?, page?, …filters }` and returns
 `{ rows, total, page, pageCount }`. The count and the page go out as one
@@ -309,7 +314,9 @@ the server. That is the console's answer to "where does the React Query layer
 go": it does not, until a screen has *optimistic* client state
 (drag-to-reorder, edits that must paint before the server replies). A
 URL-driven filter is not that. See
-[`folder-structure.md`](./folder-structure.md).
+[`folder-structure.md`](./folder-structure.md). The hook now lives at
+`components/shared/use-list-navigation.ts` (the `admin/shared/list-controls`
+path re-exports it) so `/store` shares the exact implementation.
 
 **The table** takes a `filtered` boolean so an empty result reads as "nothing
 matched" instead of "add your first —".

@@ -1,60 +1,41 @@
 import "server-only"
 
-import { randomBytes } from "node:crypto"
-import { mkdir, unlink, writeFile } from "node:fs/promises"
-import path from "node:path"
-
 import {
-  UPLOADS_URL_PREFIX,
-  type AcceptedImageMime,
-} from "@/constants/uploads"
+  cloudinaryDestroy,
+  cloudinaryUpload,
+  publicIdFromUrl,
+} from "@/lib/cloudinary"
+import type { AcceptedImageMime } from "@/constants/uploads"
 
 /**
- * Image storage, on the local filesystem under `public/uploads`.
+ * Image storage — now **Cloudinary**, via `lib/cloudinary.ts`.
  *
- * Next.js serves everything in `public/` as a static asset, so a file written
- * to `public/uploads/x.png` is immediately readable at `/uploads/x.png` with
- * no route handler in between. That is the whole appeal, and also the whole
- * caveat:
+ * This module used to write files under `public/uploads`, which
+ * `docs/categories-feature.md` flagged at length as "the right answer for
+ * local development and a long-lived VPS, and the wrong one for a serverless
+ * deploy": the bundle is read-only there and every invocation gets a fresh
+ * container, so an upload written on one request was gone by the next.
+ * Cloudinary removes that caveat — the bytes leave the server on the same
+ * request that received them, and the stored value is a CDN URL that survives
+ * a redeploy.
  *
- *   - **The filesystem must be writable and durable.** On a serverless host
- *     (Vercel, Lambda) it is neither — the bundle is read-only and each
- *     invocation gets a fresh container, so an upload written on one request
- *     is gone by the next. This module is therefore the right thing for local
- *     development and a long-lived VPS/container, and the wrong thing for a
- *     serverless deploy. `docs/tech-stack.md` names Cloudflare R2 as the
- *     production target; swapping this module for an R2 client is a change to
- *     these two functions and nothing else, because nothing above the service
- *     layer knows where a URL points.
- *   - **Files are not in git.** `.gitignore` keeps `public/uploads/*`, so a
- *     fresh clone has categories whose `imageUrl` points at nothing.
+ * **The public surface is unchanged**, which is the point of the layering:
+ * `category.service.ts` and `product.service.ts` still call `saveImage` /
+ * `deleteImage`, still get a URL to put on a row, and still translate
+ * `UnsupportedImageError` into a field error. Nothing above this file knows
+ * where a URL points. See docs/image-uploads.md.
  *
- * Only the service layer should import this — same rule as `lib/db.ts`.
+ * Still `server-only` — it reaches the API-secret path in `lib/cloudinary.ts`.
  */
-
-const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads")
-
-/**
- * Extension by *sniffed* type, never by the uploaded filename.
- *
- * `file.name` is attacker-controlled: it can carry `../`, a second extension
- * (`x.png.html`), or a null byte. Deriving the extension from content instead
- * means the stored name is built entirely from values this module chose.
- */
-const EXTENSION: Record<AcceptedImageMime, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/avif": "avif",
-}
 
 /**
  * Identify an image by its magic bytes.
  *
  * The browser-supplied `file.type` is a claim, not a fact — it is trivially
- * spoofed on a direct POST to the Server Action. Since these files are served
- * back as static assets, the guarantee worth having is that what lands in
- * `public/` really is the image format its extension advertises.
+ * spoofed on a direct POST to the Server Action. Sniffing the content means
+ * the type we hand Cloudinary (and store) is the format the bytes actually
+ * are, and an upload that is not an image at all is rejected here rather than
+ * by the API.
  */
 function sniffImageType(bytes: Uint8Array): AcceptedImageMime | null {
   const magic = (...signature: number[]) =>
@@ -73,7 +54,7 @@ function sniffImageType(bytes: Uint8Array): AcceptedImageMime | null {
   return null
 }
 
-/** Raised when the bytes are not one of the four formats above. */
+/** Raised when the bytes are not one of the four supported formats. */
 export class UnsupportedImageError extends Error {
   constructor() {
     super("Uploaded bytes are not a JPEG, PNG, WebP or AVIF image.")
@@ -82,52 +63,37 @@ export class UnsupportedImageError extends Error {
 }
 
 /**
- * Write an uploaded image and return the public URL to store on the row.
+ * Upload an image to Cloudinary and return the URL to store on the row.
  *
  * Throws `UnsupportedImageError` when the content does not match a supported
- * format — callers in the service layer translate that into a field error.
+ * format — callers in the service layer translate that into a field error —
+ * and `CloudinaryError` when the API itself refuses, which the services log
+ * and surface as a generic "could not save the image".
  */
 export async function saveImage(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer())
+  const buffer = await file.arrayBuffer()
 
-  const type = sniffImageType(bytes)
+  const type = sniffImageType(new Uint8Array(buffer))
   if (!type) throw new UnsupportedImageError()
 
-  await mkdir(UPLOADS_DIR, { recursive: true })
-
-  // Random, not slugified-from-the-name: two admins uploading `rose.jpg` must
-  // not overwrite each other, and the name must not be guessable enough to
-  // probe. The timestamp prefix only keeps a directory listing chronological.
-  const filename = `${Date.now().toString(36)}-${randomBytes(8).toString("hex")}.${EXTENSION[type]}`
-
-  await writeFile(path.join(UPLOADS_DIR, filename), bytes)
-
-  return `${UPLOADS_URL_PREFIX}/${filename}`
+  const { secureUrl } = await cloudinaryUpload(buffer, type)
+  return secureUrl
 }
 
 /**
  * Delete a previously stored image. Never throws.
  *
- * Cleanup is best-effort on purpose: the row is already correct by the time
- * this runs, and failing a successful category update because a stale JPEG
- * could not be unlinked would be the wrong trade. A leaked file costs disk;
- * a failed update costs the admin their work.
- *
- * Anything that is not one of *our* URLs is ignored, so a hand-edited
- * `imageUrl` of `/etc/passwd` or `../../.env` deletes nothing.
+ * Anything that is not one of our own Cloudinary URLs is ignored — a
+ * hand-edited `imageUrl`, or a `/uploads/...` path written before this module
+ * moved to Cloudinary, deletes nothing.
  */
-export async function deleteImage(url: string | null | undefined): Promise<void> {
-  if (!url?.startsWith(`${UPLOADS_URL_PREFIX}/`)) return
+export async function deleteImage(
+  url: string | null | undefined
+): Promise<void> {
+  if (!url) return
 
-  // `basename` collapses any traversal the string still contains.
-  const target = path.resolve(UPLOADS_DIR, path.basename(url))
-  if (path.dirname(target) !== path.resolve(UPLOADS_DIR)) return
+  const publicId = publicIdFromUrl(url)
+  if (!publicId) return
 
-  try {
-    await unlink(target)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.error("[uploads] could not delete", url, error)
-    }
-  }
+  await cloudinaryDestroy(publicId)
 }

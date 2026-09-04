@@ -8,11 +8,17 @@
  * storage module into a Client Component would fail the build.
  *
  * So the numbers live here and all three readers — the browser input, the Zod
- * schema, and the writer in `lib/uploads.ts` — agree by construction.
+ * schema, and the writer in `lib/uploads.ts` (which uploads to Cloudinary —
+ * see docs/image-uploads.md) — agree by construction.
  */
 
-/** URL prefix every stored file is reachable under. */
-export const UPLOADS_URL_PREFIX = "/uploads"
+/**
+ * Shown wherever a product has no image of its own — the storefront catalog
+ * card, mostly. A real file at `public/image.png`, so it needs no
+ * `next.config` allow-listing and is optimised like any other local asset.
+ * Swap that file to change the placeholder; nothing else has to move.
+ */
+export const DEFAULT_PRODUCT_IMAGE = "/image.png"
 
 /** 4 MB. A category card image; anything larger is an unresized camera dump. */
 export const MAX_IMAGE_BYTES = 4 * 1024 * 1024
