@@ -8,7 +8,8 @@ its shipping address, and move its status along the fulfilment track.
 - [`folder-structure.md`](./folder-structure.md) — the layer architecture, and the list-page convention this follows
 - [`admin-dashboard.md`](./admin-dashboard.md) — the console shell, the shared list primitives
 - [`customers-feature.md`](./customers-feature.md) — the sibling read-first feature; the order rows link into it
-- [`payments-feature.md`](./payments-feature.md) — where orders are actually **created**, and where stock moves
+- [`checkout-orders-feature.md`](./checkout-orders-feature.md) — **built** — where orders are actually **created** (cash on delivery, not Stripe) and where stock moves; also `/account/orders`, the shopper's own read-only twin of this console
+- [`payments-feature.md`](./payments-feature.md) — the Stripe path this shop has not built; would sit *beside* checkout, not instead of it
 - [`admin-access-control.md`](./admin-access-control.md) — why the status action re-checks `isAdmin()`
 
 ---
@@ -22,7 +23,8 @@ its shipping address, and move its status along the fulfilment track.
 
 Two routes, the same shape as products and customers: a filtered, paged list,
 and an `[id]` detail. No `new/` — an order is **created by checkout**
-([`payments-feature.md`](./payments-feature.md)), never by the console.
+([`checkout-orders-feature.md`](./checkout-orders-feature.md)), never by the
+console.
 
 `[id]` is `Order.id` (a cuid). The console prints it everywhere as `#ABC123`
 — the last six characters, upper-cased — which is enough to say "order ABC123"
@@ -39,10 +41,11 @@ The console lists and inspects orders freely. The **only** thing it changes is
 > `updateOrderStatus` moves the row to any of the six statuses from any other.
 > It is a fulfilment tool, not a state machine — a mis-click is fixed by
 > picking again — and it **does not touch stock or payment.** A variant's
-> stock moves at checkout and at refund time, inside `payment.service.ts`
-> (see [`payments-feature.md`](./payments-feature.md)); a manual status nudge
-> here is neither of those events, and making it decrement stock would
-> double-count.
+> stock moves once, at order-creation time, inside `order.service.createOrder`
+> (see [`checkout-orders-feature.md`](./checkout-orders-feature.md) — cash on
+> delivery has no separate payment-confirmation event to move it a second
+> time); a manual status nudge here is not that event, and making it
+> decrement stock would double-count.
 
 Everything else an orders console might eventually do — refunds, partial
 fulfilment, editing a line, re-sending a confirmation — is out of scope and
@@ -57,17 +60,25 @@ would each be its own Server Action with its own rules.
   components/admin/orders/
    ├── orders-table.tsx      Server — the list
    ├── orders-filters.tsx    Client — search + status → navigation
-   ├── order-status-control.tsx  Client — the one write
-   └── order-summary.tsx     Server — line items + totals
+   └── order-status-control.tsx  Client — the one write
         │
         ↓
   actions/order/update-order-status.ts   "use server" — isAdmin(), validate, delegate, revalidate
         │
         ↓
-  services/order.service.ts   listOrders, getOrder, updateOrderStatus
+  services/order.service.ts   listOrders, getOrder, updateOrderStatus —
+                               plus createOrder / getOrderForUser /
+                               listOrdersForUser for checkout and
+                               /account/orders — checkout-orders-feature.md
         │
         └──→ lib/db.ts        Prisma
 ```
+
+`order-summary.tsx` (the line-items table this page renders) moved to
+`components/shared/` when `/account/orders/[id]` needed the exact same table
+for a shopper's own order — `components/admin/orders/index.ts` re-exports it,
+so this page's import did not change. See
+[`checkout-orders-feature.md`](./checkout-orders-feature.md).
 
 Reads skip the action layer — the documented exception the whole console
 takes. The write goes through a Server Action, no exception.
@@ -164,16 +175,16 @@ for any list screen — see [`folder-structure.md`](./folder-structure.md), the
 
 | File | What it is |
 | --- | --- |
-| `prisma/schema.prisma` | `Order.shipping*` columns; `@@index([status])` |
+| `prisma/schema.prisma` | `Order.shipping*` columns (incl. `shippingPhone2`); `@@index([status])` |
 | `src/app/admin/orders/page.tsx` | The list — Server Component, `?q=` / `?status=` / `?page=` |
-| `src/app/admin/orders/[id]/page.tsx` | One order — status, customer, shipping, items. `notFound()` on a stale id |
-| `src/components/admin/orders/index.ts` | Barrel |
+| `src/app/admin/orders/[id]/page.tsx` | One order — status, customer, shipping (incl. the alternate phone), items. `notFound()` on a stale id |
+| `src/components/admin/orders/index.ts` | Barrel — re-exports `OrderSummary` from `components/shared/` |
 | `…/orders-table.tsx` | The list rows — id, customer, date, status, total |
 | `…/orders-filters.tsx` | Search + status — a client filter bar over `useListNavigation` |
 | `…/order-status-control.tsx` | The status `<select>` and its Server Action call |
-| `…/order-summary.tsx` | Line items + a stored-total footer |
-| `src/actions/order/update-order-status.ts` | `"use server"` — the one write |
-| `src/services/order.service.ts` | `listOrders`, `getOrder`, `updateOrderStatus` |
+| `src/components/shared/order-summary.tsx` | Line items + a stored-total footer — shared with `/account/orders/[id]` |
+| `src/actions/order/update-order-status.ts` | `"use server"` — the one write this feature owns |
+| `src/services/order.service.ts` | `listOrders`, `getOrder`, `updateOrderStatus` — plus `createOrder` and the customer-facing reads, see `checkout-orders-feature.md` |
 | `src/constants/routes.ts` | `adminOrderRoute(id)` |
 | `src/constants/design-system.ts` | `ORDER_STATUSES` — the six in fulfilment order |
 
@@ -186,9 +197,11 @@ cancel). Put the allowed-transitions table in the service and reject an
 illegal one with a message; the control already renders whatever the service
 accepts.
 
-**Refunds.** A separate Server Action, and the first thing in this feature to
-call back into `payment.service.ts` — a refund moves money and restores
-stock, which a status change deliberately does not.
+**Refunds.** A separate Server Action — a refund moves money and restores
+stock, which a status change deliberately does not. There is no Stripe
+integration yet to refund *through*; for a cash-on-delivery order a "refund"
+is really "restock the returned variants," which `order.service.ts` could do
+directly.
 
 **An order-time variant label.** Add `variantLabel` to `OrderItem`, write it
 at checkout, and read it here instead of `formatVariantLabel(variant)`. Then a

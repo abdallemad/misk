@@ -270,6 +270,7 @@ model Order {
   /// console renders "لا يوجد عنوان" for that case rather than blank fields.
   shippingName        String?
   shippingPhone       String?
+  shippingPhone2      String? /// alternate contact number, collected at checkout
   shippingLine1       String? /// street + building
   shippingLine2       String? /// apartment, floor, landmark — optional even when the rest is set
   shippingCity        String?

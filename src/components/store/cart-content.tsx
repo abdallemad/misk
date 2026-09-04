@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ShoppingBagIcon } from "lucide-react"
 
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import {
   Empty,
   EmptyDescription,
@@ -10,6 +10,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { ROUTES } from "@/constants/routes"
+import { cn } from "@/lib/utils"
 import { formatNumber, formatPrice } from "@/utils/format"
 import type { CartView } from "@/services/cart.service"
 
@@ -81,11 +82,14 @@ export function CartContent({ cart }: { cart: CartView }) {
           </div>
         </dl>
 
-        <Button type="button" variant="gold" size="xl" className="mt-4 w-full" disabled>
+        <Link
+          href={ROUTES.checkout}
+          className={cn(buttonVariants({ variant: "gold", size: "xl" }), "mt-4 w-full")}
+        >
           الدفع عند الاستلام
-        </Button>
+        </Link>
         <p className="mt-2 text-xs text-muted-foreground">
-          إتمام الطلب غير متاح بعد — قيد الإنشاء.
+          الخطوة التالية: رقم الهاتف والعنوان، ثم تأكيد الطلب.
         </p>
       </div>
     </div>

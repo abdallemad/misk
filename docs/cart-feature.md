@@ -1,16 +1,17 @@
 # Cart Feature
 
 `/cart`, and Add to Cart from the product page's variant `<select>` and from
-every catalogue card. Cart-only: checkout — placing an order, cash on
-delivery — is **not** built here. See "What is deliberately not here" below.
+every catalogue card. This document covers the cart only; placing an order —
+[`checkout-orders-feature.md`](./checkout-orders-feature.md) — was the next
+round and reads the cart this feature builds.
 
 ## Related documents
 
 - [`folder-structure.md`](./folder-structure.md) — the layer architecture, and why this feature departs from it
 - [`store-feature.md`](./store-feature.md) — the catalogue and product page this adds to
 - [`products-feature.md`](./products-feature.md) — `ProductVariant`, the thing a cart line actually points at
-- [`checkout-orders-feature.md`](./checkout-orders-feature.md) — where "cash on delivery" and `Order` creation belong, not built yet
-- [`payments-feature.md`](./payments-feature.md) — the Stripe path this project also has *not* taken here; COD is the one this shop asked for
+- [`checkout-orders-feature.md`](./checkout-orders-feature.md) — **built** — where "cash on delivery" and `Order` creation actually happen, consuming the cart this document builds
+- [`payments-feature.md`](./payments-feature.md) — the Stripe path this project has *not* taken; COD is the one this shop asked for
 
 ---
 
@@ -59,13 +60,19 @@ cookie is realistically a few KB, so `MAX_CART_LINES` and
 empties the cart; there is no server-side backup). Both are acceptable for a
 cart that does not yet check out.
 
-**This is not the final answer.** The day checkout is built, a cart's
-contents have to become durable — an `Order` is created from *something*, and
-`payment.service.ts` needs a row it can lock during that transaction. That is
-the point at which `Cart` / `CartItem` earn their place in `schema.prisma`,
-and the cookie becomes at most the anonymous half of a merge-on-sign-in flow.
-Until then, the cookie is simpler and correct for what this feature actually
-does.
+**A prediction that did not come true — worth recording, the way
+`products-feature.md` records the `react-hook-form` one that did not either.**
+This section originally said the day checkout was built, a cart's contents
+would have to become durable and `Cart` / `CartItem` would finally earn their
+place. Checkout is built now
+([`checkout-orders-feature.md`](./checkout-orders-feature.md)), and it did not
+need them: `createOrder` reads the cookie through `getCart()` for *what* to
+buy, then re-derives price and stock live from `ProductVariant` inside its own
+transaction — never from a `Cart` row, because there still is not one. The
+cookie only ever had to survive from "add to cart" to "press place order," a
+single browser session, which it always could. `Cart` / `CartItem` still have
+a real trigger — an abandoned-cart email, a saved cart across devices, an
+address book — just not the one this paragraph used to assume.
 
 ### The cookie holds *only* an id and a quantity
 
@@ -141,7 +148,7 @@ there. Only **«أضف إلى السلة»** does anything:
 | Button | State | Why |
 | --- | --- | --- |
 | «أضف إلى السلة» | live | Calls `addToCartAction`; the cart is what this round builds |
-| «اشترِ الآن» | **disabled, unconditionally** | "Buy now" has to lead to checkout, and checkout — cash on delivery, an `Order` row — is not built. The `/cart` page's own confirm button is disabled for the same reason (below) |
+| «اشترِ الآن» | **disabled, unconditionally** | Written when checkout did not exist yet ("buy now" has to lead somewhere); left disabled once it did, because jumping a card's default variant straight into `/checkout` would skip the one screen (`/cart`, or the product page's own `<select>`) where a shopper can still change their mind about size — see [`checkout-orders-feature.md`](./checkout-orders-feature.md) |
 
 `disabled` is a literal `true` on «اشترِ الآن», not `pending || …` — it is
 never wired to the add-to-cart transition at all. That is a fix, not a
@@ -267,17 +274,16 @@ Client Component each, for its own stepper and remove button), an
 piece count, the subtotal, and:
 
 ```tsx
-<Button variant="gold" size="xl" className="w-full" disabled>
+<Link href={ROUTES.checkout} className={cn(buttonVariants({ variant: "gold", size: "xl" }), "w-full")}>
   الدفع عند الاستلام
-</Button>
+</Link>
 ```
 
-**Disabled, with a caption saying so** — the same pattern the buy buttons
-have used since they were first added: a real control that is honestly not
-wired up yet, rather than hidden as if the shop had no answer for "how do I
-pay." Cash on delivery is the payment method this shop asked for; when
-checkout is built, this button is what gains the `onClick` (and, per the
-reasoning above, is very likely the moment `Cart` becomes a real table).
+**This used to be a disabled placeholder** — the same pattern the buy buttons
+still use — until [`checkout-orders-feature.md`](./checkout-orders-feature.md)
+built `/checkout` to send it to. The button itself did not gain an `onClick`;
+it gained a real destination, which is the more honest shape for "go do the
+next step" than a client handler would have been.
 
 ---
 
@@ -307,15 +313,13 @@ reasoning above, is very likely the moment `Cart` becomes a real table).
 
 ## What is deliberately not here
 
-**Checkout — creating an `Order`, cash on delivery going through.** The
-brief for this round was explicitly cart-only. `/cart`'s confirm button and
-both product surfaces' «اشترِ الآن» are disabled for exactly this reason. When
-checkout is built it needs: a shipping-details step (the fields
-`orders-feature.md` already documents as a snapshot on `Order`), a Server
-Action that creates the `Order` + `OrderItem` rows and decrements variant
-stock inside one transaction (`payment.service.ts`'s documented job even for
-a non-Stripe path), and very likely the `Cart` → real-table migration this
-document argues for above.
+**Checkout is built now, elsewhere.** The brief for *this* round was
+explicitly cart-only, and `/cart`'s confirm button was a disabled placeholder
+for it. It is a live `<Link>` to `/checkout` today —
+[`checkout-orders-feature.md`](./checkout-orders-feature.md) is the follow-up
+round that built the information collector, `createOrder`, and
+`/account/orders`. **«اشترِ الآن» is still disabled everywhere**, and stays
+that way on purpose — see "Extending this" below.
 
 **Signed-in cart persistence / merge-on-sign-in.** A cookie cart is identical
 whether or not the shopper is signed in; nothing here reads `getCurrentUser()`.
@@ -331,11 +335,16 @@ past one browser's cookies — see the `Cart` table discussion above.
 
 ## Extending this
 
-**Wiring up «اشترِ الآن».** Once checkout exists, give it its own handler —
-`addToCart` followed by a redirect into the checkout flow — rather than
-reusing `addToCartAction`'s button for two purposes silently. `AddToCartForm`
-and `StoreCardActions` already isolate the disabled state to that one button,
-so enabling it is a local change in each.
+**Wiring up «اشترِ الآن».** Checkout exists now, but this button still is not
+pointed at it — «اشترِ الآن» quick-adding a card's default variant *and*
+immediately jumping into `/checkout` would skip the one screen where a
+shopper can still change their mind about size, which `/cart` and
+`AddToCartForm`'s own `<select>` exist to give them. Wiring it up means
+deciding what it should actually *do* first (jump straight to `/checkout`
+with just that one line? open the picker inline?), not just flipping
+`disabled`. `AddToCartForm` and `StoreCardActions` already isolate the
+disabled state to that one button, so whichever answer wins is a local
+change in each.
 
 **A cart-drawer instead of a full page.** `storefront-layout.md` (still
 unbuilt) sketches one. `CartContent` is already a plain function of a

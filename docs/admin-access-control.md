@@ -33,7 +33,11 @@ How `/admin` is locked down.
 ### Gate 1 — `proxy.ts`: is there a session?
 
 ```ts
-const isProtectedRoute = createRouteMatcher(["/admin(.*)", "/account(.*)"])
+const isProtectedRoute = createRouteMatcher([
+  "/admin(.*)",
+  "/account(.*)",
+  "/checkout(.*)",
+])
 
 export default clerkMiddleware(async (auth, request) => {
   if (isProtectedRoute(request)) {
@@ -165,10 +169,15 @@ writes the mirror itself).
 
 ## What is *not* protected
 
-`proxy.ts` matches `/admin(.*)` and `/account(.*)`. Everything else is
-public. When you add a Server Action that mutates admin data, **re-check
-`isAdmin()` inside the action** — a Server Action is a POST endpoint, and the
-layout guard does not run for it. The layout protects pages, not mutations.
+`proxy.ts` matches `/admin(.*)`, `/account(.*)` and `/checkout(.*)` — the
+last one joined in `docs/checkout-orders-feature.md`, on the same reasoning:
+an `Order` needs a `User` row, so placing one has to be signed-in-only.
+Everything else is public. When you add a Server Action that mutates admin
+data, **re-check `isAdmin()` inside the action** — a Server Action is a POST
+endpoint, and the layout guard does not run for it. The layout protects
+pages, not mutations. (`placeOrderAction` follows the equivalent rule with
+`getCurrentUser()` instead of `isAdmin()` — there is no role to check, only
+that someone is signed in at all.)
 
 ---
 

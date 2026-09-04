@@ -25,6 +25,12 @@ type OrderSummaryProps = {
  * The footer total is the order's stored `totalPrice`, not a re-sum of the
  * lines: if they ever disagree, the stored figure is what the customer was
  * actually charged and the one to trust.
+ *
+ * Shared rather than admin-only: `/admin/orders/[id]` and the shopper's own
+ * `/account/orders/[id]` both render one order's line items the same way, so
+ * this lives in `components/shared/` — the same re-export pattern
+ * `StatusBadge` uses — and `components/admin/orders/index.ts` re-exports it
+ * so the admin import path did not have to change.
  */
 export function OrderSummary({ items, totalPrice }: OrderSummaryProps) {
   return (
