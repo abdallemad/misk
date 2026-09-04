@@ -13,8 +13,8 @@
 - [`category-feature.md`](./category-feature.md) — `/shop/[category]`, browse by Youth / Women / Men
 - [`product-page.md`](./product-page.md) — `/shop/[category]/[slug]`, the product detail page: gallery, ingredients, and the variant selector that branches by product type (bottle vs. raw oil)
 - [`search-feature.md`](./search-feature.md) — `/search`, name/description search across perfumes
-- [`cart-feature.md`](./cart-feature.md) — **built** — `/cart` and Add to Cart from `/store`. Cart-only: no checkout yet, and the cart is a cookie, not a `Cart` table — the document explains why
-- [`checkout-orders-feature.md`](./checkout-orders-feature.md) — checkout and `/account/orders`: capturing a price + variant snapshot at time of purchase
+- [`cart-feature.md`](./cart-feature.md) — **built** — `/cart` and Add to Cart from `/store`. The cart is a cookie, not a `Cart` table — the document explains why, and why checkout did not end up needing one either
+- [`checkout-orders-feature.md`](./checkout-orders-feature.md) — **built** — `/checkout` (phone(s) + city + street, then place a cash-on-delivery order) and `/account/orders` (the shopper's own order history + detail)
 - [`payments-feature.md`](./payments-feature.md) — Stripe Checkout and `POST /api/webhook`: the only route handler in the app
 - [`auth-callback.md`](./auth-callback.md) — `/auth-callback`, the sign-in landing strip that mirrors the Clerk user into the `User` table
 - [`admin-dashboard.md`](./admin-dashboard.md) — the `/admin` console and its reusable components
@@ -102,9 +102,22 @@ app/
 │   ├── layout.tsx           #   storefront chrome with store/ (its own
 │   └── page.tsx             #   layout, not nested — same reasoning as store/)
 │
+├── checkout/               #   /checkout — built — checkout-orders-feature.md.
+│   ├── layout.tsx           #   Signed-in only (proxy.ts) — phone(s) + city +
+│   └── page.tsx             #   street, then "تأكيد الطلب". Own plain folder,
+│                            #   same reasoning as store/ and cart/
+│
+├── account/                #   /account/* — built (orders only) — same
+│   ├── layout.tsx           #   storefront chrome. Signed-in only (proxy.ts)
+│   └── orders/               #   /account/orders + [id] — checkout-orders-feature.md.
+│       ├── page.tsx          #   The shopper's own order history, no paging
+│       └── [id]/page.tsx     #   One of the shopper's own orders — 404 if not
+│                            #   theirs (getOrderForUser scopes the query)
+│
 ├── (shop)/                  # header + category nav — see storefront-layout.md
 │                            #   NOT built yet — the path-based storefront the
-│                            #   docs plan, distinct from /store and /cart above
+│                            #   docs plan, distinct from /store, /cart and
+│                            #   /checkout above
 │   ├── layout.tsx
 │   ├── shop/
 │   │   ├── page.tsx          #   /shop                       — catalog-feature.md
@@ -114,8 +127,8 @@ app/
 │   │           └── page.tsx  #   /shop/[category]/[slug]      — product-page.md
 │   ├── search/                #   /search                     — search-feature.md
 │   └── account/
-│       ├── orders/            #   /account/orders + [orderNumber] — checkout-orders-feature.md
-│       └── profile/           #   /account/profile
+│       └── profile/           #   /account/profile — still unbuilt; orders
+│                              #   moved above once it existed for real
 │
 ├── admin/                   # the dashboard — admin-dashboard.md
 │                            #   a plain folder, not a route group: the URL
@@ -182,13 +195,23 @@ components/
 │                  #   the "cart/" note below for why the cart UI lives here
 │                  #   rather than in a separate components/cart/
 │
+├── checkout/      # built — checkout-form.tsx + checkout-summary.tsx.
+│                  #   checkout-orders-feature.md
+│
+├── account/       # built — account-orders-table.tsx. The order-detail page
+│                  #   under app/account/orders/[id] reuses shared/
+│                  #   order-summary.tsx rather than needing one here too
+│
 ├── product/
 │
 ├── search/
 │
 ├── cart/          # NOT built — see the note under this heading below
 │
-├── orders/
+├── orders/        # NOT built — the order-detail line-item table both
+│                  #   /admin/orders/[id] and /account/orders/[id] use lives
+│                  #   in shared/order-summary.tsx instead; nothing else here
+│                  #   has needed a components/orders/ of its own yet
 │
 └── admin/
 ```
@@ -226,6 +249,9 @@ shared/
 │                            #   here from admin/shared/list-controls.tsx,
 │                            #   which now re-exports it
 ├── status-badge.tsx         # built — order status, stock status
+├── order-summary.tsx        # built — one order's line items + total. Used
+│                            #   by /admin/orders/[id] AND /account/orders/[id]
+│                            #   — checkout-orders-feature.md
 ├── brand-lockup.tsx  brand-loader.tsx  auth-nav.tsx  theme-*.tsx   # built
 ├── empty-state.tsx  logo-avatar.tsx  search-input.tsx              # not built —
 │                            #   /store reuses components/ui/empty.tsx instead
@@ -420,10 +446,15 @@ actions/
 ├── order/         # built — update-order-status.ts. The orders console's one
 │                  #   write — orders-feature.md
 ├── search/
-└── cart/          # built — add-to-cart.ts, update-cart-item.ts,
-                   #   remove-cart-item.ts, clear-cart.ts. Public — no
-                   #   isAdmin() — and plain-argument functions, not
-                   #   useActionState — cart-feature.md
+├── cart/          # built — add-to-cart.ts, update-cart-item.ts,
+│                  #   remove-cart-item.ts, clear-cart.ts. Public — no
+│                  #   isAdmin() — and plain-argument functions, not
+│                  #   useActionState — cart-feature.md
+└── checkout/      # built — place-order.ts. Public too, but gated on
+                   #   getCurrentUser() rather than isAdmin() — signed in is
+                   #   the bar, not "is an admin". useActionState, because
+                   #   this one really is a form with field errors —
+                   #   checkout-orders-feature.md
 ```
 
 ### Responsibilities
@@ -436,9 +467,11 @@ actions/
 
 Server Actions should not contain business logic.
 
-`actions/cart/*` is the one group here with no `isAdmin()` check — every
-other action folder gates on it because everything else in the console is
-admin-only. The cart is the first *public* write in the app.
+`actions/cart/*` and `actions/checkout/place-order.ts` are the only groups
+here with no `isAdmin()` check — every other action folder gates on it
+because everything else in the console is admin-only. These two are the
+app's public writes: the cart needs no session at all, and checkout needs a
+session but not a role.
 
 ---
 
@@ -465,8 +498,12 @@ services/
 ├── customer.service.ts    # built — listCustomers + getCustomer, plus one
 │                          #   write: setCustomerRole (Clerk first, mirror
 │                          #   follows) — customers-feature.md
-├── order.service.ts       # built — listOrders + getOrder + updateOrderStatus.
-│                          #   Reads-first; does not touch stock — orders-feature.md
+├── order.service.ts       # built — listOrders + getOrder + updateOrderStatus
+│                          #   for the admin console; createOrder +
+│                          #   getOrderForUser + listOrdersForUser for
+│                          #   checkout and /account/orders. One entity, one
+│                          #   owner, two kinds of caller — checkout-orders-
+│                          #   feature.md
 ├── search.service.ts
 ├── cart.service.ts        # built — getCart, getCartCount, addToCart,
 │                          #   updateCartItem, removeCartItem, clearCart.
@@ -481,7 +518,10 @@ services/
 Action: `POST /api/webhook` calls into it directly. The rule it still obeys is
 the one that matters — the route handler validates and delegates, and every
 business rule about what a paid order means (marking it `PAID`, decrementing
-variant stock) lives in the service layer.
+variant stock) lives in the service layer. This is the Stripe path and is
+still unbuilt; the cash-on-delivery path that *is* built does not wait for a
+webhook, so its own stock decrement lives in `order.service.createOrder`
+instead — see [`checkout-orders-feature.md`](./checkout-orders-feature.md).
 
 `product.service.ts` owns the rule that keeps the catalog consistent: an
 `ALCOHOL_BASED` product's variants must carry `bottleSize` + `bottleStyle` and
@@ -568,12 +608,15 @@ Zod validation schemas.
 ```text
 schemas/
 │
-├── category.schema.ts   # built — rules, FormData adapter, form-state type
-├── product.schema.ts    # built — the same, plus the keyed variant rows
-└── cart.schema.ts       # built — the cart cookie's shape (parse/serialize)
-                         #   + the add/update mutation payloads. No FormData
-                         #   adapter — these come from a button, not a form.
-                         #   cart-feature.md
+├── category.schema.ts    # built — rules, FormData adapter, form-state type
+├── product.schema.ts     # built — the same, plus the keyed variant rows
+├── cart.schema.ts        # built — the cart cookie's shape (parse/serialize)
+│                         #   + the add/update mutation payloads. No FormData
+│                         #   adapter — these come from a button, not a form.
+│                         #   cart-feature.md
+└── checkout.schema.ts    # built — phone / phone2 / city / street, a
+                          #   FormData adapter (this one IS a form) and form
+                          #   state — checkout-orders-feature.md
 ```
 
 Examples:
@@ -593,7 +636,7 @@ Examples:
 > Action run the *same function* on what arrives — one definition of valid,
 > enforced twice, with no client copy to drift.
 - Cart Item Schema — built, `cart.schema.ts`
-- Checkout Schema
+- Checkout Schema — built, `checkout.schema.ts`
 
 Shared between forms and server actions whenever possible.
 
@@ -667,16 +710,21 @@ Core models (see [`erd.md`](./erd.md) for the full diagram):
   nullable), bottleStyle (`LUXURY` | `REGULAR`, nullable), oilWeight (`G_5` |
   `G_8` | `G_12`, nullable), oilGrade, sku, price (`Decimal(10,2)`), stock,
   isActive
-- `Cart` / `CartItem` — **not built.** The cart is a signed `httpOnly` cookie
-  instead (`{ variantId, quantity }` per line), not a table — see
-  [`cart-feature.md`](./cart-feature.md) for why, and for the point at which
-  this changes (checkout).
+- `Cart` / `CartItem` — **still not built**, checkout included. The cart is a
+  signed `httpOnly` cookie instead (`{ variantId, quantity }` per line) —
+  `checkout-orders-feature.md`'s `createOrder` reads it and re-derives price
+  and stock live from `ProductVariant`, so even order creation never needed
+  a `Cart` row. See [`cart-feature.md`](./cart-feature.md) for the fuller
+  reasoning, including the earlier prediction that checkout would be the
+  trigger — it was not.
 - `Order` — userId, status (`OrderStatus`, six members), totalPrice, plus a
   **shipping-address snapshot** (`shippingName` / `shippingPhone` /
-  `shippingLine1` / `shippingLine2` / `shippingCity` / `shippingGovernorate` /
-  `shippingCountry`, all nullable — captured at checkout, never rewritten;
-  older rows carry none). `OrderItem` snapshots `unitPrice`. See
-  [`orders-feature.md`](./orders-feature.md).
+  `shippingPhone2` / `shippingLine1` / `shippingLine2` / `shippingCity` /
+  `shippingGovernorate` / `shippingCountry`, all nullable — captured at
+  checkout, never rewritten; older rows carry none). `OrderItem` snapshots
+  `unitPrice`. See [`orders-feature.md`](./orders-feature.md) and
+  [`checkout-orders-feature.md`](./checkout-orders-feature.md) (where the
+  snapshot is actually written, for a real order).
 - `User` — mirrored from Clerk. `clerkId` is the join key (not `email`,
   which a user can change); `role` is `USER | ADMIN`, itself mirrored from
   Clerk `publicMetadata.role`. Written by `/auth-callback`, and by

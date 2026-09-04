@@ -1,6 +1,7 @@
 export { AuthNav } from "./auth-nav"
 export { BrandLoader } from "./brand-loader"
 export { BrandLockup, MiskMark } from "./brand-lockup"
+export { OrderSummary } from "./order-summary"
 export { Pagination } from "./pagination"
 export { StatusBadge, OrderStatusBadge, StockBadge } from "./status-badge"
 export { ThemeProvider } from "./theme-provider"

@@ -18,6 +18,10 @@ export const ROUTES = {
    *  the list-page convention. See docs/store-feature.md. */
   store: "/store",
   cart: "/cart",
+  /** The information collector between `/cart` and a placed order — phone
+   *  numbers and address, cash on delivery. Signed-in only (an `Order` needs
+   *  a `User` row) — see docs/checkout-orders-feature.md. */
+  checkout: "/checkout",
   search: "/search",
 
   /* Auth ---------------------------------------------------------------- */
@@ -86,6 +90,14 @@ export function adminCustomerRoute(id: string): string {
 /** One order's detail page — `/admin/orders/<id>`. Same rationale as above. */
 export function adminOrderRoute(id: string): string {
   return `${ROUTES.adminOrders}/${encodeURIComponent(id)}`
+}
+
+/**
+ * A shopper's own order — `/account/orders/<id>`. The customer-facing twin of
+ * `adminOrderRoute`, pointed at `ROUTES.accountOrders` instead — same rationale.
+ */
+export function accountOrderRoute(id: string): string {
+  return `${ROUTES.accountOrders}/${encodeURIComponent(id)}`
 }
 
 /**

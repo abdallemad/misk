@@ -14,6 +14,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
  *
  *   /admin/*     signed in, or bounce to sign-in
  *   /account/*   signed in, or bounce to sign-in
+ *   /checkout/*  signed in, or bounce to sign-in — an Order needs a User row
  *   everything else public
  *
  * The **role** check is not here. Reading a role means either a Clerk API
@@ -21,9 +22,20 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
  * including prefetches; it is also the wrong place to fail, because a
  * redirect cannot explain itself. `/admin/layout.tsx` does the admin check
  * instead — see docs/admin-access-control.md.
+ *
+ * This gate also covers Server Action POSTs bound to a page under one of
+ * these paths — the proxy's matcher is nearly universal, so it runs before
+ * the action does. It is not a substitute for checking inside the action,
+ * though: `placeOrderAction` re-checks `getCurrentUser()` itself, the same
+ * belt-and-braces every admin action takes with `isAdmin()`. See
+ * docs/checkout-orders-feature.md.
  */
 
-const isProtectedRoute = createRouteMatcher(["/admin(.*)", "/account(.*)"])
+const isProtectedRoute = createRouteMatcher([
+  "/admin(.*)",
+  "/account(.*)",
+  "/checkout(.*)",
+])
 
 export default clerkMiddleware(async (auth, request) => {
   if (isProtectedRoute(request)) {

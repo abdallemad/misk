@@ -116,6 +116,12 @@ export default async function OrderDetailPage(
                   {order.shipping.phone}
                 </span>
               ) : null}
+              {order.shipping.phone2 ? (
+                <span className="text-muted-foreground" dir="ltr">
+                  {order.shipping.phone2}
+                  <span className="text-xs"> (هاتف إضافي)</span>
+                </span>
+              ) : null}
             </address>
           ) : (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
