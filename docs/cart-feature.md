@@ -148,7 +148,7 @@ there. Only **«أضف إلى السلة»** does anything:
 | Button | State | Why |
 | --- | --- | --- |
 | «أضف إلى السلة» | live | Calls `addToCartAction`; the cart is what this round builds |
-| «اشترِ الآن» | **disabled, unconditionally** | "Buy now" has to lead to checkout, and checkout — cash on delivery, an `Order` row — is not built. The `/cart` page's own confirm button is disabled for the same reason (below) |
+| «اشترِ الآن» | **disabled, unconditionally** | Written when checkout did not exist yet ("buy now" has to lead somewhere); left disabled once it did, because jumping a card's default variant straight into `/checkout` would skip the one screen (`/cart`, or the product page's own `<select>`) where a shopper can still change their mind about size — see [`checkout-orders-feature.md`](./checkout-orders-feature.md) |
 
 `disabled` is a literal `true` on «اشترِ الآن», not `pending || …` — it is
 never wired to the add-to-cart transition at all. That is a fix, not a
