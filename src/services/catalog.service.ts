@@ -55,6 +55,14 @@ export type StoreProductCard = {
   priceTo: number | null
   totalStock: number
   variantCount: number
+  /**
+   * The variant the card's quick-add buttons act on — the cheapest *in-stock*
+   * active variant, or `null` when nothing on this card can be bought right
+   * now (both buttons render disabled then). Picking a *different* size is
+   * what the product page's `<select>` is for; the card can only ever quick-add
+   * one option. See docs/cart-feature.md.
+   */
+  defaultVariantId: string | null
 }
 
 /** One chip in the category nav — an active segment with sellable perfumes. */
@@ -203,13 +211,21 @@ export async function listCatalog(
       images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
       variants: {
         where: { isActive: true },
-        select: { price: true, stock: true },
+        // Cheapest first, so the first in-stock row is the card's quick-add
+        // default — see `StoreProductCard.defaultVariantId`.
+        orderBy: { price: "asc" },
+        select: { id: true, price: true, stock: true },
       },
     },
   })
 
   const cards = rows.map((product) => {
     const prices = product.variants.map((variant) => variant.price.toNumber())
+    // `null` (not "the first variant regardless of stock") when nothing on
+    // this card can actually be bought — the quick-add buttons disable then,
+    // rather than silently offering to add something with zero stock.
+    const defaultVariantId =
+      product.variants.find((variant) => variant.stock > 0)?.id ?? null
 
     return {
       card: {
@@ -220,6 +236,7 @@ export async function listCatalog(
         category: product.category,
         productType: product.productType,
         coverImageUrl: product.images[0]?.url ?? null,
+        defaultVariantId,
         priceFrom: prices.length > 0 ? Math.min(...prices) : null,
         priceTo: prices.length > 0 ? Math.max(...prices) : null,
         totalStock: product.variants.reduce(

@@ -16,16 +16,16 @@ import { DEFAULT_PRODUCT_IMAGE } from "@/constants/uploads"
 import { formatPrice } from "@/utils/format"
 import type { StoreProductCard as StoreProductCardData } from "@/services/catalog.service"
 
-import { StoreBuyActions } from "./store-buy-actions"
+import { StoreCardActions } from "./store-card-actions"
 
 /**
  * One perfume in the catalogue grid.
  *
  * Everything above the footer — image, name, price — is a `<Link>` to
- * `/store/[slug]`. The footer holds the two buy buttons, which are **not**
- * inside the link (interactive content cannot nest in an `<a>`, and they must
- * not trigger navigation). They render disabled — same `StoreBuyActions` the
- * product page uses, in its `card` size.
+ * `/store/[slug]`. The footer holds `StoreCardActions`, which is **not**
+ * inside the link (interactive content cannot nest in an `<a>`, and it must
+ * not trigger navigation): it quick-adds `defaultVariantId` — the cheapest
+ * in-stock option — straight to the cart. See docs/cart-feature.md.
  *
  * A perfume with no image of its own falls back to `DEFAULT_PRODUCT_IMAGE`
  * (`public/image.png`), so the grid never has a ragged hole in it.
@@ -91,7 +91,7 @@ export function StoreProductCard({
       </Link>
 
       <CardFooter>
-        <StoreBuyActions variant="card" outOfStock={product.totalStock === 0} />
+        <StoreCardActions variantId={product.defaultVariantId} />
       </CardFooter>
     </Card>
   )
