@@ -2,7 +2,12 @@
 
 import Link from "next/link"
 import { Show } from "@clerk/nextjs"
-import { ReceiptTextIcon, ShoppingBagIcon } from "lucide-react"
+import {
+  BookOpenIcon,
+  MessageCircleIcon,
+  ReceiptTextIcon,
+  ShoppingBagIcon,
+} from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
 import {
@@ -29,10 +34,13 @@ type StoreNavMenuProps = {
 
 /**
  * The header's nav — «الرئيسية» stays a plain link (one destination, nothing
- * to group), while «المتجر» and «حسابي» are hover-triggered dropdowns over
- * Base UI's `NavigationMenu` (`components/ui/navigation-menu.tsx`), not the
- * click-only `Menu` `dropdown-menu.tsx` wraps — a header needs a trigger that
- * opens on hover, the same distinction the component's own doc comment makes.
+ * to group), while «المتجر», «عن مِسك» and «حسابي» are hover-triggered
+ * dropdowns over Base UI's `NavigationMenu` (`components/ui/navigation-
+ * menu.tsx`), not the click-only `Menu` `dropdown-menu.tsx` wraps — a header
+ * needs a trigger that opens on hover, the same distinction the component's
+ * own doc comment makes. «عن مِسك» groups «حكايتنا» (`/about`) and «تواصل
+ * معنا» (`/contact`) — two destinations, the same threshold that made
+ * «حسابي» worth a dropdown rather than two more flat links next to «الرئيسية».
  *
  * A Client Component because `NavigationMenu` is (Base UI's popup state is
  * client-side) and because `<Show>` needs to know the auth state. The
@@ -75,6 +83,26 @@ export function StoreNavMenu({ categories }: StoreNavMenuProps) {
                   </NavigationMenuLink>
                 </li>
               ))}
+            </ul>
+          </NavigationMenuContent>
+        </NavigationMenuItem>
+
+        <NavigationMenuItem>
+          <NavigationMenuTrigger>عن مِسك</NavigationMenuTrigger>
+          <NavigationMenuContent>
+            <ul className="flex w-40 flex-col gap-0.5">
+              <li>
+                <NavigationMenuLink render={<Link href={ROUTES.about} />}>
+                  <BookOpenIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                  حكايتنا
+                </NavigationMenuLink>
+              </li>
+              <li>
+                <NavigationMenuLink render={<Link href={ROUTES.contact} />}>
+                  <MessageCircleIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                  تواصل معنا
+                </NavigationMenuLink>
+              </li>
             </ul>
           </NavigationMenuContent>
         </NavigationMenuItem>

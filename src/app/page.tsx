@@ -1,36 +1,20 @@
 import Link from "next/link"
 import {
-  DropletIcon,
   FlaskConicalIcon,
   LeafIcon,
+  SearchIcon,
   ShoppingBagIcon,
   SparklesIcon,
 } from "lucide-react"
 
-import { AuthNav } from "@/components/shared/auth-nav"
-import { BrandLockup } from "@/components/shared/brand-lockup"
-import { StockBadge } from "@/components/shared/status-badge"
-import { ThemeToggle } from "@/components/shared/theme-toggle"
-import { Badge } from "@/components/ui/badge"
+import { SiteFooter } from "@/components/marketing/site-footer"
+import { StoreHeader, StoreProductCard } from "@/components/store"
 import { Button, buttonVariants } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import {
-  CATEGORY_ACCENT,
-  PRODUCT_TYPE_ACCENT,
-  type CategorySlug,
-  type ProductType,
-} from "@/constants/design-system"
+import { Input } from "@/components/ui/input"
+import { CATEGORY_ACCENT, type CategorySlug } from "@/constants/design-system"
 import { ROUTES } from "@/constants/routes"
 import { cn } from "@/lib/utils"
-import { formatPrice } from "@/utils/format"
+import { listCatalog } from "@/services/catalog.service"
 
 /** The built catalogue lives at `/store`; `/store?category=<slug>` filters it. */
 const storeCategoryHref = (slug: CategorySlug) =>
@@ -39,49 +23,30 @@ const storeCategoryHref = (slug: CategorySlug) =>
 /**
  * `/` — the landing page.
  *
- * Placeholder copy and hard-coded products for now: the point of this file
- * today is to exercise the design system end to end. Once the catalog is
- * wired up, the sections here move into `components/marketing/` and the
- * products come from `product.service.ts`. See docs/design-system.md.
+ * A Server Component now — the "latest products" section reads
+ * `catalog.service.listCatalog` for real, the same read `/store` itself
+ * uses, rather than the hard-coded `FEATURED` array this file carried before
+ * the catalog existed (see docs/store-feature.md, docs/landing-page.md).
+ * The header is the shared `StoreHeader` (`components/store`), not a
+ * bespoke one — so the same «المتجر» / «حسابي» hover dropdowns `/store`,
+ * `/cart` and `/checkout` already have are here too. `CategoryStrip`'s three
+ * segments stay hard-coded — Youth / Women / Men are the shop's founding
+ * categories (docs/categories-feature.md), not placeholder data. The footer
+ * is `components/marketing/site-footer.tsx`, shared with `/about` and
+ * `/contact` — the first thing under `components/marketing/`.
+ *
+ * The hero's search box is a plain `<form action={ROUTES.store}>` — no
+ * `"use client"`, no `onSubmit`. A native GET form submission already does
+ * exactly what is wanted: navigate to `/store?q=<value>`, which
+ * `store-filters.tsx` already reads back out via its own `search` prop. See
+ * docs/landing-page.md.
  */
 
 const CATEGORIES: CategorySlug[] = ["youth", "women", "men"]
 
-type FeaturedProduct = {
-  name: string
-  category: CategorySlug
-  type: ProductType
-  from: number
-  stock: number
-  note: string
-}
-
-const FEATURED: FeaturedProduct[] = [
-  {
-    name: "عنبر الورد",
-    category: "women",
-    type: "ALCOHOL_BASED",
-    from: 690,
-    stock: 24,
-    note: "ورد دمشقي فوق قاعدة عنبر دافئة، تثبت طويلًا على البشرة.",
-  },
-  {
-    name: "دهن عود ملكي",
-    category: "men",
-    type: "RAW_OIL",
-    from: 1450,
-    stock: 3,
-    note: "دهن خالص غير مخفّف، يُقطَّر ببطء ويُباع بالجرام.",
-  },
-  {
-    name: "برغموت أزرق",
-    category: "youth",
-    type: "ALCOHOL_BASED",
-    from: 540,
-    stock: 12,
-    note: "حمضيات منعشة مع نفَس بحري خفيف، لنهار طويل.",
-  },
-]
+/** Two full rows at `lg:grid-cols-3` — enough to read as a real selection
+ *  without turning the landing page into a second `/store`. */
+const LATEST_COUNT = 6
 
 const CRAFT = [
   {
@@ -101,77 +66,59 @@ const CRAFT = [
   },
 ]
 
-function SiteHeader() {
-  return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-page items-center justify-between gap-6 px-6">
-        <BrandLockup size="sm" />
-
-        {/* A link that looks like a button is still a link: style it with
-            `buttonVariants` rather than rendering <Button> as an anchor,
-            which strips the native button semantics Base UI expects. */}
-        <nav className="hidden items-center gap-1 md:flex">
-          {CATEGORIES.map((slug) => (
-            <Link
-              key={slug}
-              href={storeCategoryHref(slug)}
-              className={buttonVariants({ variant: "ghost", size: "sm" })}
-            >
-              {CATEGORY_ACCENT[slug].label}
-            </Link>
-          ))}
-          <Link
-            href="/about"
-            className={buttonVariants({ variant: "ghost", size: "sm" })}
-          >
-            حكايتنا
-          </Link>
-        </nav>
-
-        <div className="flex items-center gap-1">
-          <AuthNav />
-          <ThemeToggle />
-          <Link
-            href="/cart"
-            aria-label="السلة"
-            className={buttonVariants({ variant: "ghost", size: "icon" })}
-          >
-            <ShoppingBagIcon />
-          </Link>
-        </div>
-      </div>
-    </header>
-  )
-}
-
 function Hero() {
   return (
     <section className="brand-sheen border-b border-border">
       <div className="mx-auto max-w-page px-6 py-24 sm:py-32">
-        <p className="eyebrow">مِسك · دار عطور</p>
-        <h1 className="mt-5 max-w-3xl text-display-md sm:text-display-lg lg:text-display-xl">
-          عطرٌ نمزجه بأيدينا،
-          <br />
-          ونعبّئه كما تحب.
-        </h1>
-        <p className="mt-6 max-w-prose text-base text-muted-foreground">
-          نبدأ من الزيت العطري والكحول الطبي، ونصل إلى قارورة تختار أنت حجمها
-          وشكلها. أو تأخذه دهنًا خالصًا، بلا كحول، يُباع بالجرام.
-        </p>
-        <div className="mt-9 flex flex-wrap gap-3">
-          <Link
-            href={ROUTES.store}
-            className={buttonVariants({ variant: "gold", size: "xl" })}
-          >
-            <ShoppingBagIcon data-icon="inline-start" />
-            تسوّق المجموعة
-          </Link>
-          <Link
-            href="/about"
-            className={buttonVariants({ variant: "outline", size: "xl" })}
-          >
-            حكاية الصناعة
-          </Link>
+        <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+          <p className="eyebrow">مِسك · دار عطور</p>
+          <h1 className="mt-5 text-display-md sm:text-display-lg lg:text-display-xl">
+            عطرٌ نمزجه بأيدينا،
+            <br />
+            ونعبّئه كما تحب.
+          </h1>
+          <p className="mt-6 max-w-prose text-base text-muted-foreground">
+            نبدأ من الزيت العطري والكحول الطبي، ونصل إلى قارورة تختار أنت حجمها
+            وشكلها. أو تأخذه دهنًا خالصًا، بلا كحول، يُباع بالجرام.
+          </p>
+
+          <form action={ROUTES.store} role="search" className="relative mt-8 w-full max-w-md">
+            <SearchIcon
+              aria-hidden="true"
+              className="pointer-events-none absolute start-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              name="q"
+              placeholder="ابحث عن عطرك — مسك، عود، ورد…"
+              aria-label="ابحث في المتجر"
+              className="h-12 rounded-full bg-background ps-10 pe-28"
+            />
+            <Button
+              type="submit"
+              variant="gold"
+              size="sm"
+              className="absolute end-1.5 top-1/2 -translate-y-1/2 rounded-full"
+            >
+              بحث
+            </Button>
+          </form>
+
+          <div className="mt-9 flex flex-wrap justify-center gap-3">
+            <Link
+              href={ROUTES.store}
+              className={buttonVariants({ variant: "gold", size: "xl" })}
+            >
+              <ShoppingBagIcon data-icon="inline-start" />
+              تسوّق المجموعة
+            </Link>
+            <Link
+              href={ROUTES.about}
+              className={buttonVariants({ variant: "outline", size: "xl" })}
+            >
+              حكاية الصناعة
+            </Link>
+          </div>
         </div>
       </div>
     </section>
@@ -181,22 +128,29 @@ function Hero() {
 function CategoryStrip() {
   return (
     <section className="mx-auto max-w-page px-6 py-16">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="mx-auto max-w-prose text-center">
+        <p className="eyebrow">الفئات</p>
+        <h2 className="mt-3 text-display-sm sm:text-display-md">
+          تسوّق حسب الفئة
+        </h2>
+      </div>
+
+      <div className="mt-10 grid gap-4 sm:grid-cols-3">
         {CATEGORIES.map((slug) => {
           const accent = CATEGORY_ACCENT[slug]
           return (
             <Link
               key={slug}
               href={storeCategoryHref(slug)}
-              className="group rounded-xl border border-border bg-card p-6 transition-colors duration-300 ease-luxe outline-none hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="group rounded-xl border border-border bg-card p-6 text-center transition-colors duration-300 ease-luxe outline-none hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <span
                 className={cn(
-                  "block h-0.5 w-10 rounded-full transition-[width] duration-500 ease-luxe group-hover:w-16",
+                  "mx-auto block h-0.5 w-10 rounded-full transition-[width] duration-500 ease-luxe group-hover:w-16",
                   accent.bg
                 )}
               />
-              <h2 className="mt-4 text-display-xs font-bold">{accent.label}</h2>
+              <h3 className="mt-4 text-display-xs font-bold">{accent.label}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{accent.note}</p>
             </Link>
           )
@@ -206,60 +160,32 @@ function CategoryStrip() {
   )
 }
 
-function Featured() {
+function Latest({
+  products,
+}: {
+  products: Awaited<ReturnType<typeof listCatalog>>["products"]
+}) {
+  if (products.length === 0) return null
+
   return (
     <section className="mx-auto max-w-page px-6 pb-20">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">مختارات</p>
-          <h2 className="mt-3 text-display-sm sm:text-display-md">
-            عطور تبدأ بها
-          </h2>
-        </div>
-        <Link href={ROUTES.store} className={buttonVariants({ variant: "outline" })}>
-          كل العطور
-        </Link>
+      <div className="mx-auto max-w-prose text-center">
+        <p className="eyebrow">وصل حديثًا</p>
+        <h2 className="mt-3 text-display-sm sm:text-display-md">
+          أحدث العطور
+        </h2>
       </div>
 
       <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURED.map((product) => {
-          const type = PRODUCT_TYPE_ACCENT[product.type]
-          return (
-            <Card key={product.name} className="overflow-hidden pt-0">
-              <div className="flacon-plate flex h-48 items-center justify-center">
-                <DropletIcon className={cn("size-12", type.text)} />
-              </div>
-              <CardHeader>
-                <p className="eyebrow">
-                  {CATEGORY_ACCENT[product.category].label} · {type.label}
-                </p>
-                <CardTitle className="mt-1.5 font-display text-display-xs font-bold">
-                  {product.name}
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  {product.note}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  يبدأ من{" "}
-                  <span
-                    className="text-base font-medium text-foreground"
-                    data-numeric
-                  >
-                    {formatPrice(product.from)}
-                  </span>
-                </p>
-                <StockBadge stock={product.stock} />
-              </CardContent>
-              <CardFooter>
-                <Button variant="gold" className="w-full">
-                  اختر الخيارات
-                </Button>
-              </CardFooter>
-            </Card>
-          )
-        })}
+        {products.map((product) => (
+          <StoreProductCard key={product.id} product={product} />
+        ))}
+      </div>
+
+      <div className="mt-10 flex justify-center">
+        <Link href={ROUTES.store} className={buttonVariants({ variant: "outline", size: "lg" })}>
+          كل العطور
+        </Link>
       </div>
     </section>
   )
@@ -279,8 +205,8 @@ function Craft() {
 
         <div className="mt-14 grid gap-8 sm:grid-cols-3">
           {CRAFT.map(({ icon: Icon, title, body }) => (
-            <div key={title}>
-              <span className="inline-flex size-10 items-center justify-center rounded-lg bg-gold-soft text-gold-soft-foreground">
+            <div key={title} className="text-center">
+              <span className="mx-auto inline-flex size-10 items-center justify-center rounded-lg bg-gold-soft text-gold-soft-foreground">
                 <Icon className="size-5" />
               </span>
               <h3 className="mt-4 text-display-xs font-bold">{title}</h3>
@@ -293,57 +219,16 @@ function Craft() {
   )
 }
 
-function SiteFooter() {
-  return (
-    <footer className="mx-auto w-full max-w-page px-6 py-14">
-      <div className="flex flex-wrap items-start justify-between gap-8">
-        <BrandLockup tagline="دار عطور" />
-        <nav className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
-          {CATEGORIES.map((slug) => (
-            <Link
-              key={slug}
-              href={storeCategoryHref(slug)}
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {CATEGORY_ACCENT[slug].label}
-            </Link>
-          ))}
-          <Link
-            href="/about"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            حكايتنا
-          </Link>
-          <Link
-            href="/design-system"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            نظام التصميم
-          </Link>
-        </nav>
-      </div>
+export default async function Home() {
+  const { products } = await listCatalog({ sort: "newest" })
 
-      <Separator className="my-8" />
-
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-xs text-muted-foreground">
-          © <span data-numeric>{new Date().getFullYear()}</span> مِسك. كل الحقوق
-          محفوظة.
-        </p>
-        <Badge variant="neutral">يُمزَج عند الطلب</Badge>
-      </div>
-    </footer>
-  )
-}
-
-export default function Home() {
   return (
     <>
-      <SiteHeader />
+      <StoreHeader />
       <main className="flex-1">
         <Hero />
         <CategoryStrip />
-        <Featured />
+        <Latest products={products.slice(0, LATEST_COUNT)} />
         <Craft />
       </main>
       <SiteFooter />
