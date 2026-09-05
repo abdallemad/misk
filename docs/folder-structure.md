@@ -6,7 +6,7 @@
 - [`erd.md`](./erd.md) — entity relationships (Category, Product, ProductVariant, Cart, Order, User)
 - [`tech-stack.md`](./tech-stack.md) — Next 16, Clerk auth, Cloudinary (product + category images — see `image-uploads.md`), shadcn/Base UI, Prisma, Stripe
 - [`storefront-layout.md`](./storefront-layout.md) — the storefront shell (`(marketing)` header, `(shop)` header + category nav), the shared brand lockup, the cart drawer and the account menu
-- [`landing-page.md`](./landing-page.md) — **built** — `/`: hero, category strip, a real "latest perfumes" grid, the manufacturing story. `/about` is the one part still unbuilt
+- [`landing-page.md`](./landing-page.md) — **built** — `/` (hero + search, category strip, a real "latest perfumes" grid), `/about` (the manufacturing story in full) and `/contact` (WhatsApp/Instagram/Facebook/email/phone)
 - [`store-feature.md`](./store-feature.md) — **built** — `/store` (the public catalogue: browse by category, search, filter by type, sort, page) and `/store/[slug]` (one perfume: gallery, the Add to Cart buy box, ingredients). Query-param driven, follows the list-page convention. The `/shop/*` docs below are the separate, still-unbuilt path-based storefront
 - [`image-uploads.md`](./image-uploads.md) — **built** — where a product photo or category picture goes (Cloudinary, via `lib/cloudinary.ts` + `lib/uploads.ts`), and the `public/image.png` default the storefront falls back to
 - [`catalog-feature.md`](./catalog-feature.md) — `/shop`, the flat public perfume listing and its derived filter facets (category, type, size)
@@ -84,10 +84,15 @@ Contains all application routes using the Next.js App Router.
 ```text
 app/
 │
-├── (marketing)/            # NOT built — /about is the one route still
-│                            #   sketched here; / turned out not to need the
-│                            #   group at all — see the root page.tsx below
-│   └── about/                #   /about — landing-page.md — still unbuilt
+├── about/                  #   /about — built — landing-page.md. The
+│                            #   manufacturing story in full. A plain folder,
+│                            #   not `(marketing)/about` — the sketched group
+│                            #   never got built (see the root page.tsx below)
+│
+├── contact/                #   /contact — built — landing-page.md. WhatsApp
+│                            #   / Instagram / Facebook / email / phone, one
+│                            #   card each — all placeholder values
+│                            #   (constants/contact.ts)
 │
 ├── store/                  #   /store  — built — the public catalogue.
 │   ├── layout.tsx           #   storefront header + footer (StoreHeader/Footer)
@@ -143,12 +148,13 @@ app/
 ├── sign-in/  sign-up/  auth-callback/   # auth-callback.md
 │
 ├── page.tsx                  #   / — built — landing-page.md. A plain root
-│                              #   file rather than `(marketing)/page.tsx` —
-│                              #   nothing else in `(marketing)` is built, so
-│                              #   the group would exist for this one route
-│                              #   alone. Shares `StoreHeader`
-│                              #   (components/store/), the same chrome
-│                              #   every other storefront page uses
+│                              #   file, sibling to about/ and contact/ above
+│                              #   rather than a `(marketing)` route group —
+│                              #   a group would only strip the segment and
+│                              #   force it back for one route. Shares
+│                              #   `StoreHeader` (components/store/), the
+│                              #   same chrome every other storefront page
+│                              #   uses
 │
 ├── layout.tsx                # <html>, <body>, Clerk + Query providers
 │
@@ -272,6 +278,9 @@ shared/
 │                            #   by /admin/orders/[id] AND /account/orders/[id]
 │                            #   — checkout-orders-feature.md
 ├── brand-lockup.tsx  brand-loader.tsx  auth-nav.tsx  theme-*.tsx   # built
+├── social-icons.tsx         # built — FacebookIcon / InstagramIcon, drawn by
+│                            #   hand (lucide-react ships no brand icons) for
+│                            #   /contact — landing-page.md
 ├── empty-state.tsx  logo-avatar.tsx  search-input.tsx              # not built —
 │                            #   /store reuses components/ui/empty.tsx instead
 └── index.ts
@@ -322,18 +331,29 @@ so search results and the catalog look identical.
 
 ### marketing/
 
-The sections of the `(marketing)` pages — one file per route, plus the pieces
-more than one of them renders.
+Built — but not the way this section originally sketched it. The plan below
+predates `/`, `/about` and `/contact` all being real pages; only one file
+exists here today.
 
 ```text
 marketing/
 │
-├── hero.tsx
-├── landing-sections.tsx      # featured perfumes, category highlights
-├── about-sections.tsx        # the manufacturing story: in-house blending,
-│                              # oil grades, medical-grade ethanol
-└── legal-sections.tsx
+└── site-footer.tsx          # built — SiteFooter, shared by /, /about and
+                              #   /contact — landing-page.md
 ```
+
+> **The four-file sketch above never happened, and likely will not as
+> written.** `Hero`, `CategoryStrip` and `Latest` (the "featured perfumes,
+> category highlights" this doc predicted as `landing-sections.tsx`) turned
+> out to be private functions inside `app/page.tsx` instead — nothing outside
+> that one page renders them, so splitting them into their own file would be
+> indirection with no second caller. `/about`'s sections are similarly
+> private to `app/about/page.tsx`, written as their own, more detailed
+> definitions rather than an import of `/`'s (see
+> [`landing-page.md`](./landing-page.md)). `site-footer.tsx` is the one
+> section that *did* need to move here — the day `/`, `/about` and
+> `/contact` all needed the identical footer. `legal-sections.tsx` has no
+> built counterpart; there is no terms/privacy page yet.
 
 ---
 
@@ -817,6 +837,9 @@ constants/
 ├── egypt.ts           # built — EGYPT_GOVERNORATES, the fixed 27-item list
 │                      #   the checkout governorate `<Select>` offers —
 │                      #   checkout-orders-feature.md
+├── contact.ts         # built — CONTACT — every placeholder value /contact
+│                      #   renders (WhatsApp/Instagram/Facebook/email/phone)
+│                      #   — landing-page.md
 └── design-system.ts   # tones, order status, stock, category + type accents
 ```
 

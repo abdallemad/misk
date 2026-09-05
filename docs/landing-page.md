@@ -1,28 +1,36 @@
-# Landing Page
+# Landing Page & Marketing Pages
 
-`/` — the front door. A hero, the three founding categories, a real "latest
-perfumes" grid pulled from the catalogue, and the manufacturing story.
+`/` — the front door: a hero (with a search box), the three founding
+categories, a real "latest perfumes" grid, and the manufacturing story.
+`/about` and `/contact` are its two siblings — the fuller brand story, and
+every channel to reach the shop. All three share the same storefront chrome
+and the same `components/marketing/` footer, and none of the three fetches
+anything a shopper needs to be signed in for.
 
 ## Related documents
 
-- [`folder-structure.md`](./folder-structure.md) — the layer architecture; this document was pre-referenced there before it existed
-- [`store-feature.md`](./store-feature.md) — **built** — `catalog.service.ts` (what "latest perfumes" reads), `StoreProductCard` (reused here as-is), and the header nav (`StoreHeader` / `StoreNavMenu`) this page now shares instead of owning its own
-- [`cart-feature.md`](./cart-feature.md) — «اشترِ الآن» / «أضف إلى السلة» on each card here are the exact same buttons and the exact same reasoning as the catalogue grid's, because it is the exact same component
+- [`folder-structure.md`](./folder-structure.md) — the layer architecture; this document was pre-referenced there before `/` (and `/about`) existed
+- [`store-feature.md`](./store-feature.md) — **built** — `catalog.service.ts` (what "latest perfumes" and the search box both read), `StoreProductCard` (reused as-is), and the header nav (`StoreHeader` / `StoreNavMenu`) all three pages here share instead of owning their own
+- [`cart-feature.md`](./cart-feature.md) — «اشترِ الآن» / «أضف إلى السلة» on each card on `/` are the exact same buttons and the exact same reasoning as the catalogue grid's, because it is the exact same component
 - [`categories-feature.md`](./categories-feature.md) — Youth / Women / Men, the three segments the category strip still hard-codes
-- [`misk_business_analysis.md`](./misk_business_analysis.md) — the brand story `Craft` translates into three claims
+- [`misk_business_analysis.md`](./misk_business_analysis.md) — the internal planning document `/about` translates into customer-facing copy; the brand story `Craft` (on both `/` and `/about`) translates into three claims
 
 ---
 
-## Route
+## Routes
 
 ```text
-/     the landing page — hero, category strip, latest perfumes, craft story
+/           the landing page — hero + search, category strip, latest perfumes, craft story
+/about      the fuller manufacturing story — the two product lines, the three categories
+/contact    every channel to reach the shop — WhatsApp, Instagram, Facebook, email, phone
 ```
 
-A plain `src/app/page.tsx`, not a `(marketing)` route group — the same
-"the URL really is this, so a group would only strip a segment and force it
-back" reasoning `app/store/` and `app/admin/` already give. `/about` is
-**still not built** (see "What is deliberately not here").
+Three plain folders under `src/app/`, not a `(marketing)` route group — the
+same "the URL really is this, so a group would only strip a segment and
+force it back" reasoning `app/store/` and `app/admin/` already give. `/`
+is `src/app/page.tsx` specifically (the root file), not
+`(marketing)/page.tsx` — nothing else in the sketched `(marketing)` group is
+built, so the group would exist for one route alone.
 
 ---
 
@@ -126,37 +134,145 @@ of the page now reads consistently with it instead of the other way around.
 
 ---
 
+## The hero search box
+
+A plain `<form action={ROUTES.store}>` with `<input type="search" name="q">`
+— no `"use client"`, no `onSubmit`, no JavaScript at all. A native GET form
+submission already does exactly what is wanted: the browser navigates to
+`/store?q=<value>`, which `store-filters.tsx` already reads back out via its
+own `search` prop — the identical query param `/store`'s own search box
+writes. This is not a second search implementation; it is the same one
+`/store` already has, reached from one more place. `role="search"` and
+`aria-label` on the `<Input>` match the accessibility annotations
+`store-filters.tsx`'s own search box already carries.
+
+No separate `/search` page or `search.service.ts` was built —
+`folder-structure.md` still lists `search-feature.md` as a distinct,
+unbuilt feature (a relevance-ranked search across perfumes, under the
+still-unbuilt `(shop)` group). This search box deliberately reuses the
+already-working `contains` search `/store` has today rather than building
+that.
+
+---
+
+## `/about` — the manufacturing story, in full
+
+`docs/misk_business_analysis.md` is an internal planning document — English,
+written to design the catalog's data model, not to be read by a shopper.
+`/about` is what that document's substance looks like translated into
+Arabic brand copy: §2 (in-house manufacturing) becomes the intro and an
+expanded three-point `Craft` (the same three claims `/` teases, written with
+more depth here); §4 (the two product formats) becomes a two-card "خطّان
+لكل ذوق" comparison — alcohol-based (30/50/100ml, luxury/regular bottle)
+side by side with raw oil / «دهن» (5/8/12g, no bottle style, sold by
+weight); the three categories get a short paragraph and a link to each
+`/store?category=` filter, deliberately **not** a second copy of `/`'s own
+category cards (the same picker appearing identically on two pages a
+shopper might visit back to back would just be repetition, not
+information). Nothing on this page is copied verbatim from the
+business-analysis document — it names *what to say*, not *how to say it to
+a customer*.
+
+A plain (non-`async`) Server Component — nothing on `/about` reads the
+database, so there is nothing to fetch.
+
+---
+
+## `/contact` — every channel, one card each
+
+WhatsApp, Instagram, Facebook, email, phone — five cards, each a `<Link>`
+(external ones get `target="_blank" rel="noopener noreferrer"`), reading
+their values from `constants/contact.ts` rather than being typed inline.
+
+**Every value in `constants/contact.ts` is a placeholder.** مِسك is a
+fictional demo brand (`misk_business_analysis.md`'s own closing line calls it
+"a foundational business/product analysis" — there is no real shop behind
+it), so the phone/WhatsApp number matches the Egyptian mobile format this
+project already assumes everywhere else (`checkout.schema.ts`'s
+`PHONE_PATTERN`, `scripts/seed-dev.mts`'s seeded customers), and the email
+uses the `.example` TLD — reserved by RFC 2606 specifically so a domain
+like it can never resolve to a real inbox. Swap every value here for the
+shop's real accounts before any of this ships for real.
+
+**No Facebook or Instagram icon from `lucide-react`.** The package dropped
+brand icons some versions back to stay a generic set. `components/shared/
+social-icons.tsx` draws two small stand-ins (`FacebookIcon`, `InstagramIcon`)
+at the same 24×24 / stroke-width-2 convention every lucide icon here uses, so
+they sit next to `<PhoneIcon>` without reading as a different icon set.
+WhatsApp needed no such stand-in — `MessageCircleIcon` already reads as
+"chat", and the visible «واتساب» label does the rest.
+
+A plain Server Component, same reasoning as `/about`.
+
+---
+
+## `components/marketing/` exists now
+
+The original `page.tsx` doc comment predicted its sections would move into
+`components/marketing/` once the catalogue existed. That did not happen the
+first time this document was written (nothing else rendered any of them
+yet) — it happened this round, because `/about` and `/contact` both needed
+the exact same footer `/` already had. `components/marketing/site-footer.tsx`
+is the first (and, for now, only) file there: `SiteFooter`, extracted as-is,
+with a «تواصل معنا» link added. `Hero`, `CategoryStrip`, `Latest` and
+`Craft` stay private functions inside `page.tsx` — nothing outside `/`
+renders any of them, and `/about`'s own `Craft`-shaped section is
+deliberately a separate, more detailed definition rather than an import of
+`/`'s (see "`/about` — the manufacturing story, in full" above).
+
+**Why not `StoreFooter`.** `components/store/store-chrome.tsx`'s
+`StoreFooter` is deliberately minimal — brand mark and a copyright line —
+because `/store`/`/cart`/`/checkout`/`/account/*` don't need a footer nav; a
+shopper mid-task already has the header. A marketing page is often the
+*first* page someone lands on, so its footer is where the category links,
+«حكايتنا» and «تواصل معنا» live for anyone who scrolled instead of using the
+header.
+
+---
+
+## The header nav grew a third dropdown
+
+`store-nav.tsx`'s `StoreNavMenu` (see `store-feature.md`'s "Header nav —
+hover dropdowns" section) now has «عن مِسك», grouping «حكايتنا» (`/about`)
+and «تواصل معنا» (`/contact`) — the same "two destinations is worth a
+dropdown" threshold that made «حسابي» one instead of two more flat links.
+It lives in `components/store/`, not `components/marketing/`, because it is
+still one component rendering the *whole* site's header nav (store links,
+account links, and now these) — splitting the marketing-only entries into a
+second nav component would only be indirection for two `<li>`s.
+
+---
+
 ## Files
 
 | File | What it is |
 | --- | --- |
-| `src/app/page.tsx` | The whole page — now an `async` Server Component |
+| `src/app/page.tsx` | `/` — an `async` Server Component (the "latest" read) |
+| `src/app/about/page.tsx` | `/about` — a plain Server Component, no data fetching |
+| `src/app/contact/page.tsx` | `/contact` — a plain Server Component, no data fetching |
+| `src/components/marketing/site-footer.tsx` | `SiteFooter` — shared by all three pages |
 | `src/components/store/store-chrome.tsx` | `StoreHeader` — reused here, not reimplemented |
+| `src/components/store/store-nav.tsx` | `StoreNavMenu` — now has the «عن مِسك» dropdown |
 | `src/components/store/store-product-card.tsx` | `StoreProductCard` — reused here for the "latest" grid |
-| `src/services/catalog.service.ts` | `listCatalog({ sort: "newest" })` — the read this page now makes |
+| `src/components/shared/social-icons.tsx` | `FacebookIcon` / `InstagramIcon` — lucide has no brand icons for either |
+| `src/services/catalog.service.ts` | `listCatalog({ sort: "newest" })` — the read `/`'s "latest" section and the search box both rely on |
 | `src/constants/design-system.ts` | `CATEGORY_ACCENT` — the category strip's hard-coded copy and colour |
+| `src/constants/contact.ts` | `CONTACT` — every placeholder value `/contact` renders |
+| `src/constants/routes.ts` | `ROUTES.about`, `ROUTES.contact` |
 
 ---
 
 ## What is deliberately not here
 
-**`/about`.** Both «حكاية الصناعة» (hero) and «حكايتنا» (footer) link to
-`/about`, which does not exist — `folder-structure.md` has sketched it since
-before this page had real data, under the still-unbuilt `(marketing)` route
-group. Neither link was added by this round; they were dead before it and
-stay dead after it. Building `/about` is its own round, with its own
-`landing-page.md` update once it exists.
-
 **A hand-picked "featured" list.** See "Why 'latest', not 'featured'" above —
 `listCatalog({ sort: "newest" })` is what stands in for it today.
 
-**`components/marketing/`.** The original doc comment predicted the landing
-page's sections would move into a `components/marketing/` folder once the
-catalogue existed. They have not — `Hero`, `CategoryStrip`, `Latest`, `Craft`
-and `SiteFooter` are still private functions inside `page.tsx`, because
-nothing outside this one page renders any of them. That folder is worth
-creating the day a second page (`/about`, most likely) needs to share one of
-these sections, not before.
+**A relevance-ranked `/search`.** The hero's search box reuses `/store`'s
+existing `contains` search; a real ranked-search page is `search-feature.md`,
+a separate, still-unbuilt feature under the sketched `(shop)` group.
+
+**Real contact details.** Every value in `constants/contact.ts` is a
+placeholder — see "`/contact` — every channel, one card each" above.
 
 ---
 
@@ -167,11 +283,11 @@ an admin toggle next to `isActive` in the product form, and swap `Latest`'s
 `listCatalog({ sort: "newest" })` call for a filtered one. Everything else —
 `StoreProductCard`, the grid, the empty-state guard — stays exactly as it is.
 
-**`/about`.** Once built, this document's "What is deliberately not here"
-entry for it should become a "Routes" entry instead, and the hero/footer
-links stop being dead ones.
-
 **Category strip from real data.** The day a fourth category stops being a
 rare event, swap `CategoryStrip`'s hard-coded array for
 `listCatalogCategories()` — `StoreHeader` and `/store` already show the
 shape that read takes.
+
+**Real contact details, once there is a real shop behind them.** Edit
+`constants/contact.ts` — nothing else changes; `/contact`'s cards render
+whatever the constant says.
