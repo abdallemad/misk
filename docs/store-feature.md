@@ -261,6 +261,9 @@ destination to group:
   to «طلباتي». `<Show>` is a client check, so `StoreNavMenu` is a Client
   Component; the category *data* is still fetched server-side, by
   `StoreHeader`, and handed down as a plain prop.
+- **«عن مِسك»** is a dropdown holding «حكايتنا» (`/about`) and «تواصل معنا»
+  (`/contact`) — the two marketing pages `landing-page.md` documents in full;
+  this file only notes that they exist in the same header nav.
 
 ### `NavigationMenu`, not `Menu` — a different Base UI primitive on purpose
 

@@ -1,5 +1,10 @@
 # Business Analysis: Misk Perfume Brand
 
+> This is an internal planning document — English, written to design the
+> catalog's data model. The customer-facing translation of §2, §4 and §6
+> below lives at [`landing-page.md`](./landing-page.md)'s `/about` page; that
+> page does not quote this one, it restates the same substance as brand copy.
+
 ## 1. Executive Summary
 Misk is a self-manufactured perfume brand. The owner personally produces every fragrance in-house, starting from raw materials (fragrance oils and pharmaceutical-grade ethanol/medical alcohol) and blending them into finished perfumes. The brand sells across multiple product lines, packaging formats, and price points, giving customers flexibility in scent type, bottle style, and bottle size.
 
