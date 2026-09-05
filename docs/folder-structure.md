@@ -6,7 +6,7 @@
 - [`erd.md`](./erd.md) — entity relationships (Category, Product, ProductVariant, Cart, Order, User)
 - [`tech-stack.md`](./tech-stack.md) — Next 16, Clerk auth, Cloudinary (product + category images — see `image-uploads.md`), shadcn/Base UI, Prisma, Stripe
 - [`storefront-layout.md`](./storefront-layout.md) — the storefront shell (`(marketing)` header, `(shop)` header + category nav), the shared brand lockup, the cart drawer and the account menu
-- [`landing-page.md`](./landing-page.md) — `/` and `/about`, the Misk brand story and manufacturing story
+- [`landing-page.md`](./landing-page.md) — **built** — `/`: hero, category strip, a real "latest perfumes" grid, the manufacturing story. `/about` is the one part still unbuilt
 - [`store-feature.md`](./store-feature.md) — **built** — `/store` (the public catalogue: browse by category, search, filter by type, sort, page) and `/store/[slug]` (one perfume: gallery, the Add to Cart buy box, ingredients). Query-param driven, follows the list-page convention. The `/shop/*` docs below are the separate, still-unbuilt path-based storefront
 - [`image-uploads.md`](./image-uploads.md) — **built** — where a product photo or category picture goes (Cloudinary, via `lib/cloudinary.ts` + `lib/uploads.ts`), and the `public/image.png` default the storefront falls back to
 - [`catalog-feature.md`](./catalog-feature.md) — `/shop`, the flat public perfume listing and its derived filter facets (category, type, size)
@@ -84,10 +84,10 @@ Contains all application routes using the Next.js App Router.
 ```text
 app/
 │
-├── (marketing)/            # header only — see storefront-layout.md
-│   ├── layout.tsx
-│   ├── page.tsx             #   /        — landing-page.md
-│   └── about/                #   /about   — landing-page.md
+├── (marketing)/            # NOT built — /about is the one route still
+│                            #   sketched here; / turned out not to need the
+│                            #   group at all — see the root page.tsx below
+│   └── about/                #   /about — landing-page.md — still unbuilt
 │
 ├── store/                  #   /store  — built — the public catalogue.
 │   ├── layout.tsx           #   storefront header + footer (StoreHeader/Footer)
@@ -103,9 +103,11 @@ app/
 │   └── page.tsx             #   layout, not nested — same reasoning as store/)
 │
 ├── checkout/               #   /checkout — built — checkout-orders-feature.md.
-│   ├── layout.tsx           #   Signed-in only (proxy.ts) — phone(s) + city +
-│   └── page.tsx             #   street, then "تأكيد الطلب". Own plain folder,
-│                            #   same reasoning as store/ and cart/
+│   ├── layout.tsx           #   Signed-in only (proxy.ts) — phone(s) + an
+│   └── page.tsx             #   Egyptian address (governorate dropdown/city/
+│                            #   center/street/building), then "تأكيد الطلب".
+│                            #   Own plain folder, same reasoning as store/
+│                            #   and cart/
 │
 ├── account/                #   /account/* — built (orders only) — same
 │   ├── layout.tsx           #   storefront chrome. Signed-in only (proxy.ts)
@@ -139,6 +141,14 @@ app/
 │   └── webhook/                #   POST /api/webhook — payments-feature.md
 │
 ├── sign-in/  sign-up/  auth-callback/   # auth-callback.md
+│
+├── page.tsx                  #   / — built — landing-page.md. A plain root
+│                              #   file rather than `(marketing)/page.tsx` —
+│                              #   nothing else in `(marketing)` is built, so
+│                              #   the group would exist for this one route
+│                              #   alone. Shares `StoreHeader`
+│                              #   (components/store/), the same chrome
+│                              #   every other storefront page uses
 │
 ├── layout.tsx                # <html>, <body>, Clerk + Query providers
 │

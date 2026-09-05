@@ -12,6 +12,7 @@ search by name, narrow by product type, sort, and page through the result.
 - [`image-uploads.md`](./image-uploads.md) — Cloudinary URLs, and the `image.png` fallback the cards use
 - [`cart-feature.md`](./cart-feature.md) — **built** — `/cart` and Add to Cart, which this document's buy box and card actions call into
 - [`checkout-orders-feature.md`](./checkout-orders-feature.md) — **built** — `/checkout` (where the header's «اشترِ الآن» and the header nav's «حسابي» dropdown both point) and `/account/orders`
+- [`landing-page.md`](./landing-page.md) — **built** — `/`, which reuses `StoreHeader`, `StoreProductCard` and `listCatalog` from this document rather than owning its own copies
 - [`misk_business_analysis.md`](./misk_business_analysis.md) — section 7, "category navigation: Youth / Women / Men"
 
 ---
@@ -287,7 +288,8 @@ Base UI-owned `<a>`.
 ### Scope: the storefront header only
 
 This only touches `StoreHeader` — the chrome shared by `/store`, `/cart`,
-`/checkout` and `/account/*`. The admin console's own sidebar
+`/checkout`, `/account/*` and, since [`landing-page.md`](./landing-page.md),
+`/` itself. The admin console's own sidebar
 (`admin-nav.ts`, [`admin-dashboard.md`](./admin-dashboard.md)) already groups
 its links by section and was not touched; it did not have this feature's
 problem (a flat, ungrouped nav) to begin with.

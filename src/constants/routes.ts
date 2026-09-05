@@ -11,6 +11,10 @@
 
 export const ROUTES = {
   home: "/",
+  /** The manufacturing story — built, docs/landing-page.md. */
+  about: "/about",
+  /** WhatsApp / Instagram / Facebook / email / phone — built, docs/landing-page.md. */
+  contact: "/contact",
   shop: "/shop",
   /** The built storefront catalogue — filter/search/paginate perfumes by
    *  category. `/shop/*` above is the separate, still-unbuilt path-based
