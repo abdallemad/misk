@@ -204,9 +204,11 @@ components/
 ├── marketing/
 │
 ├── store/         # built — /store + /store/[slug] + /cart's body: chrome
-│                  #   (StoreHeader renders StoreNavMenu — the header's
-│                  #   hover-dropdown nav, over components/ui/navigation-
-│                  #   menu.tsx), category chips, filter bar, product grid +
+│                  #   (StoreHeader renders StoreNavMenu on sm+ — the
+│                  #   header's hover-dropdown nav, over components/ui/
+│                  #   navigation-menu.tsx — and MobileNav below sm, a
+│                  #   slide-out Sheet with the same links flattened),
+│                  #   category chips, filter bar, product grid +
 │                  #   card, product gallery, AddToCartForm, StoreCardActions,
 │                  #   cart-content.tsx + cart-line-item.tsx + clear-cart-
 │                  #   button.tsx. store-feature.md, cart-feature.md — see
@@ -254,6 +256,10 @@ Examples:
   `NavigationMenu` primitive, whose trigger opens on **hover**, not just
   click — what the storefront header's «المتجر» / «حسابي» dropdowns are built
   from (`store-nav.tsx`), because `Menu` above does not open on hover. See
+  [`store-feature.md`](./store-feature.md)
+- Sheet — `sheet.tsx`, scaffolded from the start but not actually rendered
+  anywhere until `store-nav.tsx`'s mobile twin, `mobile-nav.tsx`, needed a
+  slide-out drawer for the header nav below the `sm` breakpoint. See
   [`store-feature.md`](./store-feature.md)
 
 ---

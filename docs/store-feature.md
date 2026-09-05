@@ -297,6 +297,49 @@ This only touches `StoreHeader` — the chrome shared by `/store`, `/cart`,
 its links by section and was not touched; it did not have this feature's
 problem (a flat, ungrouped nav) to begin with.
 
+### Below `sm`: `MobileNav`, a `Sheet`, not a smaller `NavigationMenu`
+
+`StoreNavMenu` was originally wrapped in `hidden sm:flex` with **no**
+`sm:hidden` sibling — below the `sm` breakpoint the entire nav vanished, and
+nothing replaced it. A phone-sized visitor could still reach the brand mark
+and, at the time, the auth/theme/cart icons (those sat outside the hidden
+wrapper), but never «المتجر», «عن مِسك» or «حسابي»: no way to reach a
+category, the story, or their own orders at all.
+
+`NavigationMenu`'s hover dropdowns are the wrong shape for a touch screen —
+there is nothing to hover on a phone, and a menu that only opens on tap is
+just `Menu` (`dropdown-menu.tsx`) with extra steps at that point. So the fix
+is a **different component**, `components/store/mobile-nav.tsx`, not
+`StoreNavMenu` rendered smaller: a slide-out `Sheet`
+(`components/ui/sheet.tsx`, Base UI's `Dialog` under the hood — installed
+since the shadcn scaffold but, until this, never actually used anywhere in
+the app) holding the identical destinations as a flat, grouped list of
+plain `<Link>`s, closing itself (`onClick={close}`, since a `Sheet` does not
+do this on its own for a `<Link>` rather than a `SheetClose`) on every one of
+them so a client-side navigation never strands the drawer open over the new
+page.
+
+**`AuthNav` and `ThemeToggle` moved into the drawer, mobile-only.** They used
+to sit in the header's icon cluster unconditionally, which — once
+`MobileNav`'s trigger also needed a place in that same 375px-wide row —
+made the mobile header noticeably crowded (cart icon, theme toggle, two auth
+buttons, *and* the menu trigger, all in one bar). `store-chrome.tsx` now
+hides that pair with `hidden sm:flex` and `MobileNav` renders them itself, in
+a `SheetFooter` at the bottom of the drawer, kept visually apart from the
+navigation links above it (a `border-t`) since they are account/appearance
+controls, not destinations to navigate to.
+
+**The trigger sits flush at the header's edge via `order-first`, not DOM
+position.** `MobileNav`'s wrapper originally sat between `BrandLockup` and
+the icon cluster in the DOM; with `justify-between` splitting three groups
+evenly, that put the hamburger button in the *middle* of the header with
+visible gaps on both sides, nowhere near an edge. `order-first sm:order-none`
+on the wrapper makes it the first item in *visual* order without moving it
+in the DOM (desktop, where it is `sm:hidden` anyway, is untouched);
+`justify-between` then pins the first-ordered item flush to the row's start
+edge — the physical **right** in this RTL app, the same edge `BrandLockup`
+already sat flush against with no margin of its own.
+
 ---
 
 ## The grid card
