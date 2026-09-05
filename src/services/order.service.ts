@@ -73,17 +73,21 @@ export type OrderLineRow = {
 }
 
 /** The shipping snapshot, or `null` for an order placed before the address
- *  was captured. `line1` present is treated as "there is an address". */
+ *  was captured. `street` present is treated as "there is an address". */
 export type OrderShippingAddress = {
   name: string | null
   phone: string | null
   /** The alternate contact number checkout collects, or `null` when none was
    *  given (and always `null` on an order placed before this column existed). */
   phone2: string | null
-  line1: string
-  line2: string | null
-  city: string | null
+  /** محافظة — one of `EGYPT_GOVERNORATES` (`constants/egypt.ts`) for any order
+   *  placed through the checkout's dropdown; free-standing on older rows. */
   governorate: string | null
+  city: string | null
+  /** المركز — the administrative division under the governorate. */
+  center: string | null
+  street: string
+  building: string | null
   country: string | null
 }
 
@@ -237,15 +241,16 @@ function mapOrderDetail(order: OrderWithDetail): OrderDetail {
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     customer: order.user,
-    shipping: order.shippingLine1
+    shipping: order.shippingStreet
       ? {
           name: order.shippingName,
           phone: order.shippingPhone,
           phone2: order.shippingPhone2,
-          line1: order.shippingLine1,
-          line2: order.shippingLine2,
-          city: order.shippingCity,
           governorate: order.shippingGovernorate,
+          city: order.shippingCity,
+          center: order.shippingCenter,
+          street: order.shippingStreet,
+          building: order.shippingBuilding,
           country: order.shippingCountry,
         }
       : null,
@@ -441,8 +446,11 @@ export async function createOrder(
           shippingName: user?.name ?? null,
           shippingPhone: input.phone,
           shippingPhone2: input.phone2,
-          shippingLine1: input.street,
+          shippingGovernorate: input.governorate,
           shippingCity: input.city,
+          shippingCenter: input.center,
+          shippingStreet: input.street,
+          shippingBuilding: input.building,
           shippingCountry: "EG",
           items: { create: orderItems },
         },

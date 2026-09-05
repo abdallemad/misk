@@ -14,7 +14,7 @@
 - [`product-page.md`](./product-page.md) — `/shop/[category]/[slug]`, the product detail page: gallery, ingredients, and the variant selector that branches by product type (bottle vs. raw oil)
 - [`search-feature.md`](./search-feature.md) — `/search`, name/description search across perfumes
 - [`cart-feature.md`](./cart-feature.md) — **built** — `/cart` and Add to Cart from `/store`. The cart is a cookie, not a `Cart` table — the document explains why, and why checkout did not end up needing one either
-- [`checkout-orders-feature.md`](./checkout-orders-feature.md) — **built** — `/checkout` (phone(s) + city + street, then place a cash-on-delivery order) and `/account/orders` (the shopper's own order history + detail)
+- [`checkout-orders-feature.md`](./checkout-orders-feature.md) — **built** — `/checkout` (phone(s) + Egyptian address — governorate dropdown, city, center, street, building — then place a cash-on-delivery order) and `/account/orders` (the shopper's own order history + detail)
 - [`payments-feature.md`](./payments-feature.md) — Stripe Checkout and `POST /api/webhook`: the only route handler in the app
 - [`auth-callback.md`](./auth-callback.md) — `/auth-callback`, the sign-in landing strip that mirrors the Clerk user into the `User` table
 - [`admin-dashboard.md`](./admin-dashboard.md) — the `/admin` console and its reusable components
@@ -187,9 +187,11 @@ components/
 │
 ├── marketing/
 │
-├── store/         # built — /store + /store/[slug] + /cart's body: chrome,
-│                  #   category chips, filter bar, product grid + card,
-│                  #   product gallery, AddToCartForm, StoreCardActions,
+├── store/         # built — /store + /store/[slug] + /cart's body: chrome
+│                  #   (StoreHeader renders StoreNavMenu — the header's
+│                  #   hover-dropdown nav, over components/ui/navigation-
+│                  #   menu.tsx), category chips, filter bar, product grid +
+│                  #   card, product gallery, AddToCartForm, StoreCardActions,
 │                  #   cart-content.tsx + cart-line-item.tsx + clear-cart-
 │                  #   button.tsx. store-feature.md, cart-feature.md — see
 │                  #   the "cart/" note below for why the cart UI lives here
@@ -230,6 +232,13 @@ Examples:
 - Select (used for size / weight / bottle style pickers)
 - Form / Field / FieldError — the error-map trio every admin form is built
   from; see [`admin-dashboard.md`](./admin-dashboard.md)
+- Dropdown Menu — Base UI's click-triggered `Menu`, for an action list
+  attached to one row (a status control, a delete confirm)
+- Navigation Menu — built, `navigation-menu.tsx`. Base UI's separate
+  `NavigationMenu` primitive, whose trigger opens on **hover**, not just
+  click — what the storefront header's «المتجر» / «حسابي» dropdowns are built
+  from (`store-nav.tsx`), because `Menu` above does not open on hover. See
+  [`store-feature.md`](./store-feature.md)
 
 ---
 
@@ -614,9 +623,10 @@ schemas/
 │                         #   + the add/update mutation payloads. No FormData
 │                         #   adapter — these come from a button, not a form.
 │                         #   cart-feature.md
-└── checkout.schema.ts    # built — phone / phone2 / city / street, a
-                          #   FormData adapter (this one IS a form) and form
-                          #   state — checkout-orders-feature.md
+└── checkout.schema.ts    # built — phone / phone2 / governorate / city /
+                          #   center / street / building, a FormData adapter
+                          #   (this one IS a form) and form state —
+                          #   checkout-orders-feature.md
 ```
 
 Examples:
@@ -719,10 +729,13 @@ Core models (see [`erd.md`](./erd.md) for the full diagram):
   trigger — it was not.
 - `Order` — userId, status (`OrderStatus`, six members), totalPrice, plus a
   **shipping-address snapshot** (`shippingName` / `shippingPhone` /
-  `shippingPhone2` / `shippingLine1` / `shippingLine2` / `shippingCity` /
-  `shippingGovernorate` / `shippingCountry`, all nullable — captured at
-  checkout, never rewritten; older rows carry none). `OrderItem` snapshots
-  `unitPrice`. See [`orders-feature.md`](./orders-feature.md) and
+  `shippingPhone2` / `shippingGovernorate` / `shippingCity` /
+  `shippingCenter` / `shippingStreet` / `shippingBuilding` /
+  `shippingCountry`, all nullable — captured at checkout, never rewritten;
+  older rows carry none). `shippingGovernorate` is validated at checkout
+  against the fixed `EGYPT_GOVERNORATES` list (`constants/egypt.ts`).
+  `OrderItem` snapshots `unitPrice`. See
+  [`orders-feature.md`](./orders-feature.md) and
   [`checkout-orders-feature.md`](./checkout-orders-feature.md) (where the
   snapshot is actually written, for a real order).
 - `User` — mirrored from Clerk. `clerkId` is the join key (not `email`,
@@ -791,6 +804,9 @@ constants/
 │                      #   service — cart-feature.md
 ├── catalog.ts         # the four catalog enums, in order, with their
 │                      #   Arabic — products-feature.md
+├── egypt.ts           # built — EGYPT_GOVERNORATES, the fixed 27-item list
+│                      #   the checkout governorate `<Select>` offers —
+│                      #   checkout-orders-feature.md
 └── design-system.ts   # tones, order status, stock, category + type accents
 ```
 

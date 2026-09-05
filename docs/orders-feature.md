@@ -106,7 +106,7 @@ variant via `formatVariantLabel`; each line also carries the variant `sku`
 (printed on the bottle, quoted to the customer) and the `unitPrice`
 snapshotted at checkout.
 
-`shipping` is `null` unless `shippingLine1` is set — an order placed before
+`shipping` is `null` unless `shippingStreet` is set — an order placed before
 this feature existed has no address, and the page renders «لا يوجد عنوان»
 rather than a card of blank rows.
 
@@ -121,17 +121,27 @@ uses.
 
 ## Shipping address: a snapshot, not a lookup
 
-`Order` gained seven nullable columns:
+`Order` carries nine nullable shipping columns — a governorate dropdown plus
+four free-text pieces of an Egyptian address, not one combined address line:
 
 ```prisma
 shippingName        String?
 shippingPhone       String?
-shippingLine1       String?   // street + building
-shippingLine2       String?   // apartment, floor, landmark
-shippingCity        String?
-shippingGovernorate String?   // محافظة
+shippingPhone2      String?   // alternate contact number, collected at checkout
+shippingGovernorate String?   // محافظة — one of EGYPT_GOVERNORATES (src/constants/egypt.ts)
+shippingCity        String?   // المدينة
+shippingCenter      String?   // المركز
+shippingStreet      String?   // الشارع
+shippingBuilding    String?   // العمارة
 shippingCountry     String?   @default("EG")
 ```
+
+`shippingStreet`/`shippingBuilding` replaced an earlier `shippingLine1`
+("street + building" combined into one string) once checkout started
+collecting the building number as its own field —
+[`checkout-orders-feature.md`](./checkout-orders-feature.md) has the checkout
+side of this. `shippingCenter` (المركز, the administrative division under the
+governorate) is new for the same reason.
 
 They are a **snapshot taken at checkout**, exactly like the price and variant
 label on `OrderItem`: if the customer later edits their saved address, the
@@ -142,7 +152,7 @@ Nullable because the column is younger than some rows. Applied with
 `prisma db push` (the project has no `migrations/` — same as the
 `Category` enum→table change in [`categories-feature.md`](./categories-feature.md)).
 On a database with real orders, backfilling is not required — the read path
-treats "no `line1`" as "no address".
+treats "no `shippingStreet`" as "no address".
 
 > **`Order.currency` still defaults to `"SAR"`** while `utils/format.ts`
 > formats every price as `EGP`. That mismatch predates this feature and is

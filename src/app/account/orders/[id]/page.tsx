@@ -71,10 +71,12 @@ export default async function AccountOrderDetailPage(
               {order.shipping.name ? (
                 <span className="font-medium">{order.shipping.name}</span>
               ) : null}
-              <span>{order.shipping.line1}</span>
-              {order.shipping.line2 ? <span>{order.shipping.line2}</span> : null}
+              <span>
+                {order.shipping.street}
+                {order.shipping.building ? `، عمارة ${order.shipping.building}` : ""}
+              </span>
               <span className="text-muted-foreground">
-                {[order.shipping.city, order.shipping.governorate]
+                {[order.shipping.center, order.shipping.city, order.shipping.governorate]
                   .filter(Boolean)
                   .join("، ")}
               </span>

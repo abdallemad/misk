@@ -1,8 +1,9 @@
 "use server"
 
+import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
-import { ROUTES } from "@/constants/routes"
+import { accountOrderRoute, ROUTES } from "@/constants/routes"
 import {
   parseCheckoutForm,
   type CheckoutFormState,
@@ -20,8 +21,23 @@ import { createOrder } from "@/services/order.service"
  * is identical: the page-level guard does not run for the action itself.
  *
  * Shaped for `useActionState`: takes the previous state, returns the next,
- * never throws. The client half is
- * `components/checkout/checkout-form.tsx`.
+ * never throws *for an error* — an error is a returned state, same as every
+ * other form in this project.
+ *
+ * **Redirects on success, from inside the action — not the return-state-and-
+ * let-the-client-navigate pattern this file (and `product-form.tsx`) used to
+ * follow.** That pattern raced `/checkout/page.tsx`'s own guard: the page
+ * redirects to `/cart` whenever the cart is empty, and `createOrder`'s last
+ * step is clearing the cart. Returning a `"success"` state and letting a
+ * `useEffect` call `router.push(accountOrderRoute(orderId))` left a window
+ * where Next.js's automatic refresh of the *current* route (`/checkout`,
+ * triggered by having just run a Server Action against it) re-ran that page
+ * first — cart now empty, so *it* redirected to `/cart` before the client's
+ * own effect ever fired, and the shopper landed back on the cart instead of
+ * their new order. Calling `redirect()` here instead means the framework
+ * navigates straight to the order from the action's own response; the
+ * `/checkout` page never renders again to see the empty cart. See
+ * docs/checkout-orders-feature.md.
  *
  * `CheckoutFormState` and its idle value are imported from the schema rather
  * than declared here — a `"use server"` module may export only async
@@ -38,7 +54,6 @@ export async function placeOrderAction(
       status: "error",
       message: "يجب تسجيل الدخول لإتمام الطلب.",
       errors: {},
-      orderId: null,
     }
   }
 
@@ -49,7 +64,6 @@ export async function placeOrderAction(
       status: "error",
       message: "راجع الحقول المميّزة بالأحمر.",
       errors: parsed.errors,
-      orderId: null,
     }
   }
 
@@ -60,7 +74,6 @@ export async function placeOrderAction(
       status: "error",
       message: result.message,
       errors: {},
-      orderId: null,
     }
   }
 
@@ -71,10 +84,5 @@ export async function placeOrderAction(
   revalidatePath(ROUTES.accountOrders)
   revalidatePath("/", "layout")
 
-  return {
-    status: "success",
-    message: "تم استلام طلبك — الدفع عند الاستلام.",
-    errors: {},
-    orderId: result.orderId,
-  }
+  redirect(accountOrderRoute(result.orderId))
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { MinusIcon, PlusIcon, ShoppingBagIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { MAX_LINE_QUANTITY } from "@/constants/cart"
+import { ROUTES } from "@/constants/routes"
 import { formatPrice } from "@/utils/format"
 import type { StoreVariant } from "@/services/catalog.service"
 
@@ -28,21 +30,29 @@ type AddToCartFormProps = {
  * The product page's buy box: **the `<select>` for the perfume's options**,
  * a quantity stepper, and «اشترِ الآن» / «أضف إلى السلة».
  *
- * A perfume always has at least one variant (`getStoreProduct` refuses to
- * return one with none), so a variant is always selected — defaulting to the
- * first one still in stock, so the picker does not open on a dead end.
+ * **«اشترِ الآن» is wired up now.** It used to be disabled unconditionally —
+ * checkout did not exist yet when this form was written, and "buy now" has
+ * to lead somewhere. `/checkout` exists now, and this button already sits
+ * behind a real `<select>` (unlike the catalogue card's own quick-add, which
+ * has no picker and stays disabled for exactly that reason — see
+ * `store-card-actions.tsx` and docs/cart-feature.md's "Extending this"). A
+ * shopper who has already chosen a size here loses nothing by skipping the
+ * cart page, so «اشترِ الآن» adds the selected variant and quantity to the
+ * cart — the identical `addToCartAction` call «أضف إلى السلة» makes — and,
+ * only on success, pushes to `/checkout`.
  *
- * **«اشترِ الآن» is disabled unconditionally** — a real "buy now" has to lead
- * somewhere, and checkout/cash-on-delivery is not built yet (see
- * `/cart`'s own disabled confirm button). Only «أضف إلى السلة» does anything
- * right now: it calls `addToCartAction` from a plain `onClick` inside
- * `useTransition`, the same call `order-status-control.tsx` and
- * `delete-product-dialog.tsx` make for a single-value write — there is one
- * thing to submit (a variant id and a quantity, already in React state), so a
- * form is more machinery than this needs.
+ * **The two buttons do not share a `pending` flag.** An earlier version of
+ * this form disabled both off one `useTransition`, which flashed a loading
+ * spinner on «اشترِ الآن» whenever «أضف إلى السلة» was pressed — a button
+ * that had not been touched and was not doing anything (see
+ * docs/cart-feature.md). Each button now owns its own transition, so
+ * pressing one never visually disturbs the other.
  */
 export function AddToCartForm({ variants }: AddToCartFormProps) {
+  const router = useRouter()
+
   const [pending, startTransition] = useTransition()
+  const [buyNowPending, startBuyNowTransition] = useTransition()
 
   const firstAvailable = variants.find((variant) => variant.stock > 0)
   const [variantId, setVariantId] = useState<string | null>(
@@ -77,6 +87,29 @@ export function AddToCartForm({ variants }: AddToCartFormProps) {
     })
   }
 
+  /** Same `addToCartAction` call as «أضف إلى السلة», then straight to
+   *  `/checkout` — a client-side push, not a `redirect()` inside the action:
+   *  adding a line never empties the cart, so there is no page-level guard
+   *  here for a server refresh to race (unlike `placeOrderAction`, see
+   *  `place-order.ts`). */
+  function buyNow() {
+    if (!selected || outOfStock) return
+
+    startBuyNowTransition(async () => {
+      const result = await addToCartAction({
+        variantId: selected.id,
+        quantity,
+      })
+
+      if (!result.ok) {
+        toast.error(result.message)
+        return
+      }
+
+      router.push(ROUTES.checkout)
+    })
+  }
+
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border p-4">
       <div className="flex flex-col gap-1.5">
@@ -85,7 +118,7 @@ export function AddToCartForm({ variants }: AddToCartFormProps) {
           items={variantItems(variants)}
           value={variantId}
           onValueChange={(value) => pickVariant(String(value))}
-          disabled={pending}
+          disabled={pending || buyNowPending}
         >
           <SelectTrigger id="variant-select" className="w-full">
             <SelectValue />
@@ -112,7 +145,7 @@ export function AddToCartForm({ variants }: AddToCartFormProps) {
               variant="outline"
               size="icon-sm"
               onClick={() => setQuantity((value) => Math.max(1, value - 1))}
-              disabled={pending || outOfStock || quantity <= 1}
+              disabled={pending || buyNowPending || outOfStock || quantity <= 1}
             >
               <MinusIcon aria-hidden="true" />
             </Button>
@@ -126,7 +159,7 @@ export function AddToCartForm({ variants }: AddToCartFormProps) {
               onClick={() =>
                 setQuantity((value) => Math.min(maxQuantity, value + 1))
               }
-              disabled={pending || outOfStock || quantity >= maxQuantity}
+              disabled={pending || buyNowPending || outOfStock || quantity >= maxQuantity}
             >
               <PlusIcon aria-hidden="true" />
             </Button>
@@ -137,9 +170,19 @@ export function AddToCartForm({ variants }: AddToCartFormProps) {
       ) : null}
 
       <div className="flex flex-col gap-2 sm:flex-row">
-        {/* Disabled unconditionally — no checkout to lead to yet. Not tied
-            to `pending` at all, so it never shows the add-to-cart spinner. */}
-        <Button type="button" variant="gold" size="xl" className="flex-1" disabled>
+        {/* Its own transition (`buyNowPending`), not `pending` — so pressing
+            «أضف إلى السلة» never spins this button, and vice versa. Both are
+            still disabled while either is in flight, to stop a double-click
+            firing two overlapping cart writes. */}
+        <Button
+          type="button"
+          variant="gold"
+          size="xl"
+          className="flex-1"
+          onClick={buyNow}
+          disabled={pending || buyNowPending || outOfStock}
+        >
+          {buyNowPending ? <Spinner /> : null}
           اشترِ الآن
         </Button>
         <Button
@@ -148,7 +191,7 @@ export function AddToCartForm({ variants }: AddToCartFormProps) {
           size="xl"
           className="flex-1"
           onClick={addToCart}
-          disabled={pending || outOfStock}
+          disabled={pending || buyNowPending || outOfStock}
         >
           {pending ? <Spinner /> : <ShoppingBagIcon data-icon="inline-start" aria-hidden="true" />}
           أضف إلى السلة
@@ -158,7 +201,7 @@ export function AddToCartForm({ variants }: AddToCartFormProps) {
       <p className="text-xs text-muted-foreground">
         {outOfStock
           ? "غير متوفر حاليًا — يُحضَّر عند الطلب."
-          : "الدفع عند الاستلام — «اشترِ الآن» قيد الإنشاء، أضف إلى السلة في الوقت الحالي."}
+          : "الدفع عند الاستلام — «اشترِ الآن» ينقلك مباشرة إلى إتمام الطلب."}
       </p>
     </div>
   )

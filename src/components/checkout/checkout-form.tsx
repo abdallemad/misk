@@ -1,6 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { startTransition, useActionState, useEffect, useState } from "react"
 import { toast } from "sonner"
 
@@ -9,9 +8,18 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Form } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Spinner } from "@/components/ui/spinner"
-import { accountOrderRoute } from "@/constants/routes"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Spinner } from "@/components/ui/spinner"
+import { EGYPT_GOVERNORATES } from "@/constants/egypt"
+import {
+  BUILDING_MAX,
+  CENTER_MAX,
   CITY_MAX,
   IDLE_CHECKOUT_FORM_STATE,
   parseCheckoutForm,
@@ -21,9 +29,9 @@ import {
 
 /**
  * The information collector between `/cart` and a placed order: the two
- * contact numbers and the address, then one submit.
+ * contact numbers and the Egyptian address, then one submit.
  *
- * Same shape as `product-form.tsx`, scaled down to four fields:
+ * Same shape as `product-form.tsx`, scaled down:
  *
  *   - **Dispatched from `onSubmit`, not `<form action>`.** React resets an
  *     uncontrolled form after a `<form action>` completes, including with
@@ -33,12 +41,17 @@ import {
  *     Server Action inside `startTransition` once that passes (the server
  *     pass — the one that is actually the gate, since the action is a public
  *     POST endpoint).
- *   - **Navigates away on success**, to the new order — the effect below
- *     watches `state.status`.
+ *   - **The governorate `<Select>` is uncontrolled**, the same
+ *     `name` + `items` + `defaultValue={null}` shape `product-form.tsx` uses
+ *     for its category select — Base UI's Select carries its own hidden
+ *     input, so it reaches `FormData` exactly like a plain `<Input>` would.
+ *   - **Never navigates on success — `placeOrderAction` does, itself**, via
+ *     `redirect()`. There is no `"success"` status to watch here at all; see
+ *     `place-order.ts`'s doc comment for why a client-side `router.push` used
+ *     to live here and why it raced `/checkout/page.tsx`'s empty-cart guard.
+ *     This effect only ever has an error to show.
  */
 export function CheckoutForm() {
-  const router = useRouter()
-
   const [state, formAction, pending] = useActionState(
     placeOrderAction,
     IDLE_CHECKOUT_FORM_STATE
@@ -49,18 +62,10 @@ export function CheckoutForm() {
   useEffect(() => {
     if (state.status === "idle") return
 
-    if (state.status === "success" && state.orderId) {
-      toast.success(state.message)
-      router.push(accountOrderRoute(state.orderId))
-      return
-    }
-
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setErrors(state.errors)
 
     if (Object.keys(state.errors).length === 0) toast.error(state.message)
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -115,6 +120,23 @@ export function CheckoutForm() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <Field name="governorate">
+          <FieldLabel htmlFor="checkout-governorate">المحافظة</FieldLabel>
+          <Select name="governorate" items={governorateItems} defaultValue={null}>
+            <SelectTrigger id="checkout-governorate" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {EGYPT_GOVERNORATES.map((governorate) => (
+                <SelectItem key={governorate} value={governorate}>
+                  {governorate}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldError />
+        </Field>
+
         <Field name="city">
           <FieldLabel htmlFor="checkout-city">المدينة</FieldLabel>
           <Input
@@ -126,19 +148,38 @@ export function CheckoutForm() {
           />
           <FieldError />
         </Field>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field name="center">
+          <FieldLabel htmlFor="checkout-center">المركز</FieldLabel>
+          <Input id="checkout-center" name="center" maxLength={CENTER_MAX} placeholder="مركز نصر" />
+          <FieldError />
+        </Field>
 
         <Field name="street">
-          <FieldLabel htmlFor="checkout-street">العنوان</FieldLabel>
+          <FieldLabel htmlFor="checkout-street">الشارع</FieldLabel>
           <Input
             id="checkout-street"
             name="street"
             maxLength={STREET_MAX}
-            placeholder="اسم الشارع ورقم المبنى"
+            placeholder="اسم الشارع"
             autoComplete="street-address"
           />
           <FieldError />
         </Field>
       </div>
+
+      <Field name="building">
+        <FieldLabel htmlFor="checkout-building">العمارة</FieldLabel>
+        <Input
+          id="checkout-building"
+          name="building"
+          maxLength={BUILDING_MAX}
+          placeholder="رقم العمارة"
+        />
+        <FieldError />
+      </Field>
 
       <Button type="submit" variant="gold" size="xl" className="w-full" disabled={pending}>
         {pending ? <Spinner /> : null}
@@ -147,3 +188,16 @@ export function CheckoutForm() {
     </Form>
   )
 }
+
+/**
+ * `items` is what lets `<SelectValue>` render a label instead of `null` before
+ * anything is picked — same reasoning as `product-form.tsx`'s `categoryItems`.
+ * The leading `null` entry is the placeholder.
+ */
+const governorateItems = [
+  { value: null, label: "اختر المحافظة" },
+  ...EGYPT_GOVERNORATES.map((governorate) => ({
+    value: governorate,
+    label: governorate,
+  })),
+]

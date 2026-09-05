@@ -29,6 +29,16 @@ import type { MyOrderRow } from "@/services/order.service"
  * the customer column (every row here is already "me"), and each row links
  * to `accountOrderRoute` instead of `adminOrderRoute`. A Server Component —
  * nothing on this list is interactive.
+ *
+ * **The whole row is the click target**, not just the `#ABC123` text — the
+ * "stretched link" pattern: a `<Link>` positioned `absolute inset-0` inside
+ * the first cell, sized against the row by `<TableRow>`'s own `relative`
+ * (added here, not on the shared primitive, so no other table gains it).
+ * The mono `#ABC123` stays as a visible sibling `<span>` — real link text for
+ * anyone tabbing through or reading with a screen reader, `aria-hidden` so
+ * the same string is not announced twice. The admin `OrdersTable` instead
+ * gives each row a dedicated eye-icon button; this table has more room to
+ * make the row itself the target since nothing else in it is interactive.
  */
 export function AccountOrdersTable({ orders }: { orders: MyOrderRow[] }) {
   if (orders.length === 0) {
@@ -64,15 +74,20 @@ export function AccountOrdersTable({ orders }: { orders: MyOrderRow[] }) {
 
       <TableBody>
         {orders.map((order) => (
-          <TableRow key={order.id}>
+          <TableRow key={order.id} className="relative cursor-pointer">
             <TableCell>
               <Link
                 href={accountOrderRoute(order.id)}
-                className="font-mono text-xs font-medium underline-offset-4 hover:underline"
+                className="absolute inset-0"
+                aria-label={`عرض الطلب #${shortId(order.id)}`}
+              />
+              <span
+                className="relative font-mono text-xs font-medium"
+                aria-hidden="true"
                 dir="ltr"
               >
                 #{shortId(order.id)}
-              </Link>
+              </span>
             </TableCell>
 
             <TableCell className="hidden sm:table-cell">
