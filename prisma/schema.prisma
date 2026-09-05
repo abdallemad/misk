@@ -271,10 +271,11 @@ model Order {
   shippingName        String?
   shippingPhone       String?
   shippingPhone2      String? /// alternate contact number, collected at checkout
-  shippingLine1       String? /// street + building
-  shippingLine2       String? /// apartment, floor, landmark — optional even when the rest is set
-  shippingCity        String?
-  shippingGovernorate String? /// محافظة
+  shippingGovernorate String? /// محافظة — one of EGYPT_GOVERNORATES (src/constants/egypt.ts), a dropdown at checkout
+  shippingCity        String? /// المدينة
+  shippingCenter      String? /// المركز
+  shippingStreet      String? /// الشارع
+  shippingBuilding    String? /// العمارة
   shippingCountry     String? @default("EG")
 
   createdAt  DateTime    @default(now())

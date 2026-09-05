@@ -21,9 +21,15 @@ type StoreCardActionsProps = {
  * `AddToCartForm` has the full picker; the card can only ever act on one
  * variant, so it acts on the obvious one rather than guessing further.
  *
- * **«اشترِ الآن» is disabled unconditionally**, the same call
- * `AddToCartForm` makes on the product page — there is no checkout for it to
- * lead to yet. Only «أضف إلى السلة» does anything.
+ * **«اشترِ الآن» is disabled unconditionally, on purpose, unlike the product
+ * page's `AddToCartForm`.** That one wired its own «اشترِ الآن» up to
+ * `/checkout` once checkout existed, because it sits behind a real `<select>`
+ * — a shopper who buy-nows from there has already picked a size. This card
+ * has no picker; a card's «اشترِ الآن» quick-adding `defaultVariantId` and
+ * jumping straight to `/checkout` would skip the one screen (the product
+ * page's `<select>`, or `/cart`) where a shopper can still change their mind
+ * about size. See docs/cart-feature.md. Only «أضف إلى السلة» does anything
+ * here.
  *
  * These buttons are siblings of the card's `<Link>` to the product page, not
  * nested inside it (`store-product-card.tsx` explains why) — so there is no

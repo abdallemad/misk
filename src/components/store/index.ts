@@ -5,6 +5,7 @@
  */
 
 export { StoreHeader, StoreFooter } from "./store-chrome"
+export { StoreNavMenu } from "./store-nav"
 export { StoreCategoryNav } from "./store-category-nav"
 export { StoreFilters } from "./store-filters"
 export { StoreProductGrid } from "./store-product-grid"

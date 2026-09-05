@@ -11,6 +11,7 @@ search by name, narrow by product type, sort, and page through the result.
 - [`categories-feature.md`](./categories-feature.md) — the segments the chips filter by
 - [`image-uploads.md`](./image-uploads.md) — Cloudinary URLs, and the `image.png` fallback the cards use
 - [`cart-feature.md`](./cart-feature.md) — **built** — `/cart` and Add to Cart, which this document's buy box and card actions call into
+- [`checkout-orders-feature.md`](./checkout-orders-feature.md) — **built** — `/checkout` (where the header's «اشترِ الآن» and the header nav's «حسابي» dropdown both point) and `/account/orders`
 - [`misk_business_analysis.md`](./misk_business_analysis.md) — section 7, "category navigation: Youth / Women / Men"
 
 ---
@@ -19,7 +20,7 @@ search by name, narrow by product type, sort, and page through the result.
 
 ```text
 /store            the catalogue  (?category= chip · ?q= search · ?type= filter · ?sort= · ?page= paging)
-/store/[slug]     one perfume: gallery, variants + prices, ingredients, two (disabled) buy buttons
+/store/[slug]     one perfume: gallery, variants + prices, ingredients, buy now / add to cart
 ```
 
 The catalogue is one page with all its state in the URL. There is **no
@@ -76,8 +77,9 @@ surfaces.
         │
         ↓
   components/store/
-   ├── store-chrome.tsx           Server — header + footer
-   ├── store-category-nav.tsx     Server — the chips; each is a plain <Link>
+   ├── store-chrome.tsx           Server — header (renders StoreNavMenu) + footer
+   ├── store-nav.tsx              Client — the header's hover dropdowns, see below
+   ├── store-category-nav.tsx     Server — the in-page chips; each is a plain <Link>
    ├── store-filters.tsx          Client — search + type + sort → useListNavigation
    ├── store-product-grid.tsx     Server — the grid, or the empty state
    ├── store-product-card.tsx     Server — one perfume in the grid, a <Link>
@@ -232,6 +234,66 @@ enforces for the client controls).
 
 ---
 
+## The header nav — hover dropdowns, not flat links
+
+`StoreHeader` (`store-chrome.tsx`) used to render two flat `<Link>`s —
+«الرئيسية» and «المتجر». It now renders `StoreNavMenu`, which groups the
+site's links into hover-triggered dropdowns wherever there is more than one
+destination to group:
+
+- **«الرئيسية»** stays a plain `<Link>` — one destination, nothing to group.
+- **«المتجر»** is a dropdown: «كل المنتجات» (`/store`) plus every active
+  category (`?category=<slug>`, with its live product count and
+  `categoryAccent` dot) — the same data `listCatalogCategories()` already
+  feeds to `store-category-nav.tsx`'s in-page chips, fetched a second time
+  here because the header renders on every storefront page, not just
+  `/store`.
+- **«حسابي»**, shown only when signed in (Clerk's `<Show when="signed-in">`,
+  the same guard `auth-nav.tsx` already uses), is a dropdown holding
+  «طلباتي» → `/account/orders` and **«السلة»** → `/cart`. Before this,
+  nothing in the header linked to order history at all — a shopper could
+  only reach it by already knowing the URL, or via the redirect straight
+  after placing an order. «السلة» is deliberately a *second* path to the same
+  route the header's cart icon already links to, not a replacement for it —
+  the icon stays reachable while signed out (the cart needs no session at
+  all), and a signed-in shopper now also finds it grouped under «حسابي» next
+  to «طلباتي». `<Show>` is a client check, so `StoreNavMenu` is a Client
+  Component; the category *data* is still fetched server-side, by
+  `StoreHeader`, and handed down as a plain prop.
+
+### `NavigationMenu`, not `Menu` — a different Base UI primitive on purpose
+
+`components/ui/dropdown-menu.tsx` already wraps Base UI's `Menu` — the
+primitive every click-triggered action list in this app uses (a status
+control, a delete confirm). A header nav needs a trigger that opens **on
+hover**, and `Menu` does not do that; Base UI ships a separate
+`NavigationMenu` primitive built for exactly this (its `Trigger` "opens the
+navigation menu popup when hovered or clicked" — Base UI's own doc comment).
+`components/ui/navigation-menu.tsx` wraps that one, following the same
+shadcn-style convention (`data-slot`, `cn()`, Tailwind) every other
+`components/ui/*` wrapper in this project already uses — see
+`select.tsx` / `dropdown-menu.tsx` for the pattern it copies.
+
+`StoreNavMenu` renders one `NavigationMenu.Root` with two dropdown
+`NavigationMenu.Item`s (Store, Account) sharing one `Portal` /
+`Positioner` / `Popup` / `Viewport` — the "basic composition" the
+component's own docs show, not the nested-submenu one (there is no
+dropdown-inside-a-dropdown here). Each `NavigationMenuLink` `render`s a real
+Next `<Link>`, the same `render`-prop composition `Button` already uses
+elsewhere in this project (e.g. the customer link on
+`/admin/orders/[id]`) — a nav item is a real client-navigable link, not a
+Base UI-owned `<a>`.
+
+### Scope: the storefront header only
+
+This only touches `StoreHeader` — the chrome shared by `/store`, `/cart`,
+`/checkout` and `/account/*`. The admin console's own sidebar
+(`admin-nav.ts`, [`admin-dashboard.md`](./admin-dashboard.md)) already groups
+its links by section and was not touched; it did not have this feature's
+problem (a flat, ungrouped nav) to begin with.
+
+---
+
 ## The grid card
 
 `store-product-card.tsx` shows the cover image, the category + type eyebrow,
@@ -280,7 +342,7 @@ column, top to bottom:
 | Breadcrumb | `المتجر / <category> / <name>`; the first two are links, the category one filters the grid |
 | Heading | category (link) · type eyebrow, the name as `<h1>`, the "from" price |
 | Description | the full `Product.description` — required and NOT NULL, so always present |
-| **Buy box** | `AddToCartForm` — the options select, a quantity stepper, buy now (disabled) / add to cart (live) |
+| **Buy box** | `AddToCartForm` — the options select, a quantity stepper, buy now (live — adds to cart, then pushes to `/checkout`) / add to cart (live) |
 | الجودة والمكوّنات | the ingredient list with notes, only when the perfume has any (the panel [`misk_business_analysis.md`](./misk_business_analysis.md) §6 asks for) |
 
 ### `AddToCartForm` replaces the old read-only variant list
@@ -291,13 +353,16 @@ itself disabled, for one with none — so it is the picker *and* the price list
 at once. A quantity stepper follows, capped at
 `min(selected.stock, MAX_LINE_QUANTITY)`.
 
-**«اشترِ الآن» is disabled unconditionally; «أضف إلى السلة» calls
-`addToCartAction`.** See [`cart-feature.md`](./cart-feature.md) for the full
-reasoning — the short version is that "buy now" has to lead to a checkout
-that does not exist yet, and an earlier version disabling both off one shared
-`pending` flag made *both* buttons flash a spinner when only one was pressed.
-The two are independent now: «اشترِ الآن» is never wired to the transition at
-all, and «أضف إلى السلة» owns the only `Spinner` in the component.
+**Both buttons call `addToCartAction`; only «اشترِ الآن» also navigates.**
+Both add the selected variant + quantity to the cart. «أضف إلى السلة» stops
+there (a toast). «اشترِ الآن», on success, pushes to `/checkout` — a shopper
+who buy-nows from here has already picked a size from the `<select>` right
+above it, so skipping straight past `/cart` loses nothing. See
+[`cart-feature.md`](./cart-feature.md) for the full reasoning, including why
+the catalogue card's own «اشترِ الآن» stays disabled (no `<select>` there to
+have already committed to a size) and why each button owns its **own**
+`pending` flag rather than sharing one (an earlier version's shared flag made
+*both* buttons flash a spinner when only one was pressed).
 
 ### The gallery
 
@@ -337,8 +402,10 @@ than writing `?sort=newest`, so the canonical catalogue URL stays clean.
 | `src/app/store/[slug]/page.tsx` | One perfume — `getStoreProduct` + `generateMetadata`, `notFound()` on a stale slug |
 | `src/app/store/[slug]/loading.tsx` | Skeleton for the product query |
 | `src/components/store/index.ts` | Barrel |
-| `…/store-chrome.tsx` | `StoreHeader` + `StoreFooter` |
-| `…/store-category-nav.tsx` | Server — the category chips, plain `<Link>`s |
+| `…/store-chrome.tsx` | `StoreHeader` (renders `StoreNavMenu`, fetches `listCatalogCategories()`) + `StoreFooter` |
+| `…/store-nav.tsx` | Client — the header's «المتجر» / «حسابي» hover dropdowns |
+| `src/components/ui/navigation-menu.tsx` | The Base UI `NavigationMenu` wrapper `store-nav.tsx` is built from |
+| `…/store-category-nav.tsx` | Server — the in-page category chips, plain `<Link>`s |
 | `…/store-filters.tsx` | Client — search + type + sort, over `useListNavigation` |
 | `…/store-product-grid.tsx` | Server — the grid + the "nothing matched" empty state |
 | `…/store-product-card.tsx` | Server — one perfume in the grid: a `<Link>` (image → price) plus a `StoreCardActions` footer |
@@ -356,10 +423,13 @@ than writing `?sort=newest`, so the canonical catalogue URL stays clean.
 
 ## What is deliberately not here
 
-**Checkout.** `/cart` (built — see [`cart-feature.md`](./cart-feature.md))
-and Add to Cart are done; placing an order — cash on delivery, an `Order` row
-— is not. «اشترِ الآن» stays disabled everywhere and `/cart`'s own confirm
-button is disabled too, until `checkout-orders-feature.md` is built.
+**Checkout was out of scope for this round — it exists now, elsewhere.**
+`/cart` (built — see [`cart-feature.md`](./cart-feature.md)) and Add to Cart
+were what this feature built; placing an order — cash on delivery, an
+`Order` row — is [`checkout-orders-feature.md`](./checkout-orders-feature.md),
+a later round. `/cart`'s confirm button and the product page's «اشترِ الآن»
+were both disabled placeholders when this document was first written; both
+are live now (`cart-feature.md` has the current state of each).
 
 **Merging `/store` and `/shop`.** `/shop/[category]/[slug]` is the path-based
 storefront the older docs plan. `/store` is the list-convention catalogue the

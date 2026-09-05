@@ -1,11 +1,13 @@
 import { z } from "zod"
 
+import { EGYPT_GOVERNORATES } from "@/constants/egypt"
+
 /**
- * Validation for the checkout form — the phone numbers and address a cash-
- * on-delivery order needs, and nothing else. The single definition of what a
- * valid checkout submission is, enforced in the browser (a courtesy — see
- * below) and again in the Server Action (the actual gate), the same split
- * every other form in this project follows.
+ * Validation for the checkout form — the phone numbers and the Egyptian
+ * address a cash-on-delivery order needs, and nothing else. The single
+ * definition of what a valid checkout submission is, enforced in the browser
+ * (a courtesy — see below) and again in the Server Action (the actual gate),
+ * the same split every other form in this project follows.
  *
  * Messages are Arabic because they are rendered verbatim under the field.
  */
@@ -15,7 +17,9 @@ import { z } from "zod"
  * ---------------------------------------------------------------------- */
 
 export const CITY_MAX = 60
+export const CENTER_MAX = 60
 export const STREET_MAX = 120
+export const BUILDING_MAX = 20
 
 /**
  * An Egyptian mobile number, loosely — optional `+20` / `20` country code,
@@ -48,17 +52,42 @@ const phone2 = z
   .regex(PHONE_PATTERN, "رقم هاتف مصري غير صالح — مثال: 01012345678.")
   .nullable()
 
+/**
+ * The governorate select — one of `EGYPT_GOVERNORATES`, the same
+ * "written-out list, checked at the boundary" pattern
+ * `product.schema.ts`'s `productType` uses for a Prisma enum. This one is
+ * not a database enum (an admin never adds a 28th governorate), but the rule
+ * is identical: whatever arrives in the `FormData` must be one of the fixed
+ * options the `<select>` actually offered.
+ */
+const governorate = z.enum(EGYPT_GOVERNORATES, { error: "اختر المحافظة." })
+
 const city = z
   .string()
   .trim()
   .min(2, "المدينة مطلوبة.")
   .max(CITY_MAX, `اسم المدينة طويل — ${CITY_MAX} حرفًا كحد أقصى.`)
 
+/** المركز — the administrative division under the governorate. */
+const center = z
+  .string()
+  .trim()
+  .min(2, "المركز مطلوب.")
+  .max(CENTER_MAX, `اسم المركز طويل — ${CENTER_MAX} حرفًا كحد أقصى.`)
+
 const street = z
   .string()
   .trim()
-  .min(2, "العنوان مطلوب.")
-  .max(STREET_MAX, `العنوان طويل — ${STREET_MAX} حرفًا كحد أقصى.`)
+  .min(2, "الشارع مطلوب.")
+  .max(STREET_MAX, `اسم الشارع طويل — ${STREET_MAX} حرفًا كحد أقصى.`)
+
+/** العمارة — the building number or name, kept apart from the street name
+ *  itself so each renders as its own line on the order detail pages. */
+const building = z
+  .string()
+  .trim()
+  .min(1, "رقم العمارة مطلوب.")
+  .max(BUILDING_MAX, `رقم العمارة طويل — ${BUILDING_MAX} حرفًا كحد أقصى.`)
 
 /* -------------------------------------------------------------------------
  * The form
@@ -67,8 +96,11 @@ const street = z
 export const checkoutFormSchema = z.object({
   phone,
   phone2,
+  governorate,
   city,
+  center,
   street,
+  building,
 })
 
 export type CheckoutFormInput = z.infer<typeof checkoutFormSchema>
@@ -106,8 +138,11 @@ export function parseCheckoutForm(
   const result = checkoutFormSchema.safeParse({
     phone: text("phone"),
     phone2: phone2Raw === "" ? null : phone2Raw,
+    governorate: text("governorate"),
     city: text("city"),
+    center: text("center"),
     street: text("street"),
+    building: text("building"),
   })
 
   if (result.success) return { success: true, data: result.data }
@@ -133,20 +168,23 @@ export function parseCheckoutForm(
  * in this project gives: a `"use server"` module may export only async
  * functions, so a plain object exported from `place-order.ts` would reach the
  * client as a broken server-reference stub.
+ *
+ * **No `"success"` status, and no `orderId`.** `placeOrderAction` used to
+ * return one and let the client `router.push` to the new order — see
+ * `place-order.ts`'s doc comment for why that raced `/checkout/page.tsx`'s own
+ * empty-cart redirect and sent the shopper to `/cart` instead. The action now
+ * calls `redirect()` itself on success, so this state is only ever read on
+ * the error path; a successful submission never returns here at all.
  */
 export type CheckoutFormState = {
-  status: "idle" | "success" | "error"
+  status: "idle" | "error"
   /** One line for the toast. `null` while idle. */
   message: string | null
   errors: CheckoutFormErrors
-  /** The new order's id, once placed — the form navigates to it and nowhere
-   *  else knows it yet. */
-  orderId: string | null
 }
 
 export const IDLE_CHECKOUT_FORM_STATE: CheckoutFormState = {
   status: "idle",
   message: null,
   errors: {},
-  orderId: null,
 }

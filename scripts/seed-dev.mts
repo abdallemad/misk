@@ -355,14 +355,32 @@ const CUSTOMERS = [
   { handle: "hassan-lotfy", name: "حسن لطفي", phone: "+201000000018" },
 ] as const
 
-/** Egyptian shipping targets — one governorate, a couple of its areas, and a
- *  street, combined per order into a snapshot on `Order.shipping*`. */
+/** Egyptian shipping targets — one governorate and a couple of its cities,
+ *  combined per order (with a `CENTERS` pick and a `STREETS` pick) into a
+ *  snapshot on `Order.shipping*`. The governorate values are a subset of
+ *  `EGYPT_GOVERNORATES` (`src/constants/egypt.ts`) — written out again here
+ *  rather than imported because this script has no path-alias resolution
+ *  (plain Node type-stripping, no bundler — see the module doc). */
 const SHIPPING_AREAS = [
   { governorate: "القاهرة", cities: ["مدينة نصر", "المعادي", "مصر الجديدة", "المقطم"] },
   { governorate: "الجيزة", cities: ["الدقي", "المهندسين", "6 أكتوبر", "الشيخ زايد"] },
   { governorate: "الإسكندرية", cities: ["سموحة", "سيدي جابر", "العجمي", "المنتزه"] },
   { governorate: "الدقهلية", cities: ["المنصورة", "طلخا", "ميت غمر"] },
   { governorate: "الشرقية", cities: ["الزقازيق", "بلبيس", "العاشر من رمضان"] },
+]
+
+/** المركز — the administrative division under the governorate. Not tied to a
+ *  specific governorate above; a believable value, not a geographically
+ *  exact one, the same bar `STREETS` already sets. */
+const CENTERS = [
+  "مركز أول",
+  "مركز ثانٍ",
+  "المركز",
+  "مركز الجيزة",
+  "مركز طنطا",
+  "مركز دمنهور",
+  "مركز المنصورة",
+  "مركز الزقازيق",
 ]
 
 const STREETS = [
@@ -626,10 +644,11 @@ function shippingFor(user: SeededUser) {
   return {
     shippingName: user.name,
     shippingPhone: user.phone ?? `+2010${randInt(10_000_000, 99_999_999)}`,
-    shippingLine1: `${pick(STREETS)}، عمارة ${randInt(1, 120)}`,
-    shippingLine2: rng() > 0.5 ? `الدور ${randInt(1, 9)}، شقة ${randInt(1, 40)}` : null,
-    shippingCity: pick(area.cities),
     shippingGovernorate: area.governorate,
+    shippingCity: pick(area.cities),
+    shippingCenter: pick(CENTERS),
+    shippingStreet: pick(STREETS),
+    shippingBuilding: String(randInt(1, 120)),
     shippingCountry: "EG",
   }
 }

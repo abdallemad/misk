@@ -8,7 +8,8 @@ delivery**; there is no online payment step.
 ## Related documents
 
 - [`folder-structure.md`](./folder-structure.md) — the layer architecture this follows
-- [`cart-feature.md`](./cart-feature.md) — the cart this feature consumes and clears
+- [`cart-feature.md`](./cart-feature.md) — the cart this feature consumes and clears; also where the product page's «اشترِ الآن» now pushes to `/checkout` from
+- [`store-feature.md`](./store-feature.md) — the header's «حسابي» dropdown links to `/account/orders`, this feature's route
 - [`orders-feature.md`](./orders-feature.md) — the admin console this shares `Order`/`OrderItem` with
 - [`admin-access-control.md`](./admin-access-control.md) — the two-gate pattern `/checkout` now copies
 - [`auth-callback.md`](./auth-callback.md) — why a `User` row is guaranteed to exist by the time this feature needs one
@@ -19,7 +20,9 @@ delivery**; there is no online payment step.
 ## Routes
 
 ```text
-/checkout                signed in — phone(s) + city + street, then "تأكيد الطلب"
+/checkout                signed in — phone(s) + Egyptian address (governorate
+                          dropdown, city, center, street, building), then
+                          "تأكيد الطلب"
 /account/orders          signed in — the shopper's own order history, no paging
 /account/orders/[id]     signed in — one of the shopper's own orders; 404 if it is not theirs
 ```
@@ -61,9 +64,11 @@ same way `save-product.ts` re-checks `isAdmin()`.
    └── checkout-summary.tsx   Server — a read-only echo of the cart
         │                            ┌───────────────────────────────┐
         ├───────────────────────────→│  schemas/checkout.schema.ts   │
-        ↓                            │  phone(s) + city + street      │
-  actions/checkout/place-order.ts    └───────────────────────────────┘
-   "use server" — getCurrentUser(), parse, delegate, revalidate
+        ↓                            │  phone(s) + governorate/city/ │
+  actions/checkout/place-order.ts    │  center/street/building       │
+   "use server" — getCurrentUser(), └───────────────────────────────┘
+   parse, delegate, revalidate,
+   redirect() to the order on success
         │
         ↓
   services/order.service.ts   createOrder() — see below
@@ -208,17 +213,59 @@ pattern `StatusBadge` already uses — and
 `components/admin/orders/index.ts` re-exports it, so the admin page's import
 path did not have to change.
 
+### Each row on `/account/orders` is its own click target, not just `#ABC123`
+
+The list originally matched the admin `OrdersTable`'s convention exactly: the
+mono `#ABC123` text was the only `<Link>`, everything else in the row was
+inert. On a shopper's own history — where nothing else in the row is
+interactive, unlike the admin table's customer-name link and status
+control — that made the actual click target smaller than the row it lives
+in, for no reason. `AccountOrdersTable` now makes the **whole row** the
+target with a "stretched link": a `<Link>` positioned `absolute inset-0`
+inside the id cell, `<TableRow className="relative cursor-pointer">`
+supplying the positioning context so the link sizes against the row, not just
+the cell. The `#ABC123` text becomes a plain `aria-hidden` sibling `<span>`
+so its string is not announced twice, and the stretched `<Link>` alone gets
+`aria-label="عرض الطلب #ABC123"` for anyone tabbing through or using a screen
+reader. The admin `OrdersTable` keeps its own convention (a dedicated eye-icon
+button per row) — it was not touched, since that table's other cells really
+do hold interactive links a stretched anchor would have to route around.
+
 ---
 
 ## The checkout form
 
-`checkout.schema.ts` validates four fields — `phone` (required), `phone2`
-(optional, an alternate contact number), `city`, `street` — and nothing else.
-No name field: `shippingName` is filled from the signed-in shopper's
+`checkout.schema.ts` validates seven fields: `phone` (required), `phone2`
+(optional, an alternate contact number), and the five pieces of an Egyptian
+address — `governorate`, `city`, `center`, `street`, `building` — and nothing
+else. No name field: `shippingName` is filled from the signed-in shopper's
 `User.name` automatically (already known from their Clerk profile), so the
-form does not ask for something the app already has. No governorate field
-either — the brief for this round asked for city and street, and
-`shippingGovernorate` stays `null` until a reason to collect it shows up.
+form does not ask for something the app already has.
+
+**The address is five fields, not two.** The first round of this feature
+asked only for `city` + `street` and left `shippingGovernorate` `null`
+(see "Extending this" in the previous revision of this document, which named
+exactly this as the next step). This round replaced that pair with the shape
+an Egyptian shipping address actually has: **المحافظة** (governorate — a
+`<Select>` over the fixed `EGYPT_GOVERNORATES` list,
+`src/constants/egypt.ts`), **المدينة** (city), **المركز** (center — the
+administrative division under the governorate), **الشارع** (street) and
+**العمارة** (building). Street and building are deliberately separate fields
+rather than one free-text line (the previous `shippingLine1` "street +
+building" string) — a courier reading the order detail page gets each on its
+own line instead of parsing a combined sentence, and the checkout form can
+validate a building number's length independently of a street name's.
+
+**`governorate` is a closed list, not free text** — `z.enum(EGYPT_GOVERNORATES,
+…)` in the schema, the identical "written-out literal array, checked at the
+boundary" pattern `product.schema.ts`'s `productType` uses for a Prisma enum.
+It is not actually a database enum (nothing here ever adds a 28th
+governorate), but the same reasoning applies: whatever string arrives in the
+`FormData` must be one the `<Select>` actually offered, not anything a direct
+POST to `placeOrderAction` might try to smuggle in. The `<Select>` itself is
+Base UI's, uncontrolled with `name="governorate"` + `items` + `defaultValue={null}`
+— the exact shape `product-form.tsx`'s category picker already uses, which is
+what lets it reach `FormData` like a plain `<input>` without any extra wiring.
 
 **`PHONE_PATTERN`** is deliberately Egypt-specific — optional `+20`/`20`,
 optional leading `0`, then `1` and one of the four carrier digits, then eight
@@ -235,12 +282,27 @@ retype their street too. `parseCheckoutForm` runs client-side first (visible
 without a round trip) and again inside `placeOrderAction` (the actual gate,
 because the action is a public POST endpoint).
 
-**It navigates to the new order on success**, via a `useEffect` watching
-`state.orderId` — `router.push(accountOrderRoute(orderId))`. Not a `redirect()`
-call inside the action itself: this project's forms return state and let the
-client navigate (see `product-form.tsx`), which keeps `useActionState`'s
-`pending` flag working through the transition and keeps every form in the app
-doing the "how do I get to the next screen" step the same way.
+**`placeOrderAction` redirects to the new order itself, with `redirect()`** —
+not the return-state-and-let-the-client-`router.push` pattern this file
+described here until a bug fix changed it (and the pattern `product-form.tsx`
+still uses). The two are not interchangeable for checkout specifically:
+
+> **The bug this fixed.** `/checkout/page.tsx` redirects to `/cart` whenever
+> the cart is empty (see "`/checkout` is not `/cart`" below), and
+> `createOrder`'s last step is clearing the cart. The old version returned a
+> `{ status: "success", orderId }` state and left a `useEffect` to call
+> `router.push(accountOrderRoute(orderId))` — but invoking a Server Action
+> also makes Next.js refresh the *current* route (`/checkout`) with fresh
+> data, and that refresh reran the page **before** the client's own effect
+> got a turn: cart now empty (thanks to the very order that just succeeded),
+> so `/checkout/page.tsx` redirected to `/cart` itself, first. The shopper
+> landed back on their empty cart instead of the order they had just placed.
+> Calling `redirect(accountOrderRoute(orderId))` from inside the action
+> avoids the race entirely — the framework navigates straight there from the
+> action's own response, so `/checkout/page.tsx` never renders again to see
+> the now-empty cart. `CheckoutFormState` lost its `"success"` status and its
+> `orderId` field along with this — a successful submission no longer
+> returns to the client at all; the type only ever carries an error now.
 
 ### `/checkout` is not `/cart`
 
@@ -248,7 +310,9 @@ Editing a quantity or removing a line happens on `/cart`; `/checkout`'s
 `CheckoutSummary` is read-only — no stepper, no remove button. By the time a
 shopper is on `/checkout` they are confirming what is in the cart, not
 shopping, and an empty cart redirects straight back to `/cart` rather than
-rendering a form with nothing above it.
+rendering a form with nothing above it. This is the exact guard the bug above
+raced against — it is correct and stays; the fix was in how success
+navigates, not in this guard.
 
 ---
 
@@ -279,19 +343,20 @@ number blank — renders without it, exactly like the six columns before it.
 | --- | --- |
 | `src/app/checkout/layout.tsx` | Storefront chrome, shared with `/store` / `/cart` / `/account` |
 | `src/app/checkout/page.tsx` | `getCurrentUser()` + `getCart()` guards, renders the form + summary |
-| `src/components/checkout/checkout-form.tsx` | Client — the four fields, `useActionState` |
+| `src/components/checkout/checkout-form.tsx` | Client — the seven fields (phone(s) + the five address pieces), `useActionState` |
 | `…/checkout-summary.tsx` | Server — read-only echo of the cart |
-| `src/actions/checkout/place-order.ts` | `"use server"` — `getCurrentUser()`, parse, delegate, revalidate |
+| `src/actions/checkout/place-order.ts` | `"use server"` — `getCurrentUser()`, parse, delegate, revalidate, `redirect()` to the order on success (not a returned state — see "The checkout form") |
 | `src/services/order.service.ts` | `createOrder`, `getOrderForUser`, `listOrdersForUser`, plus the pre-existing admin reads/write |
 | `src/services/cart.service.ts` | Unchanged — `getCart` / `clearCart` are what `createOrder` calls into |
-| `src/schemas/checkout.schema.ts` | `phone` / `phone2` / `city` / `street`, `PHONE_PATTERN`, the FormData adapter, form state |
+| `src/schemas/checkout.schema.ts` | `phone` / `phone2` / `governorate` / `city` / `center` / `street` / `building`, `PHONE_PATTERN`, the FormData adapter, form state |
+| `src/constants/egypt.ts` | `EGYPT_GOVERNORATES` — the fixed 27-item list the governorate `<Select>` offers |
 | `src/app/account/layout.tsx` | Storefront chrome for `/account/*` |
 | `src/app/account/orders/page.tsx` | `getCurrentUser()` → `listOrdersForUser()` |
 | `src/app/account/orders/[id]/page.tsx` | `getCurrentUser()` → `getOrderForUser()`, `notFound()` if not theirs |
-| `src/components/account/account-orders-table.tsx` | Server — a shopper's own order list |
+| `src/components/account/account-orders-table.tsx` | Server — a shopper's own order list; each row is a "stretched link" to its detail page |
 | `src/components/shared/order-summary.tsx` | Server — one order's line items; moved here from `components/admin/orders/` |
-| `src/app/admin/orders/[id]/page.tsx` | +1 line — renders `shippingPhone2` when present |
-| `prisma/schema.prisma` | `Order.shippingPhone2` |
+| `src/app/admin/orders/[id]/page.tsx` | Renders `shippingPhone2` and the five-field address when present |
+| `prisma/schema.prisma` | `Order.shippingPhone2`; `Order.shippingGovernorate`/`shippingCity`/`shippingCenter`/`shippingStreet`/`shippingBuilding` (replacing the earlier `shippingLine1`/`shippingLine2` pair) |
 | `src/proxy.ts` | `/checkout(.*)` added to the protected-route matcher |
 | `src/constants/routes.ts` | `ROUTES.checkout`, `accountOrderRoute(id)` |
 
@@ -310,9 +375,9 @@ to a courier.
 a different stock-timing rule — see "Why there is no `payment.service.ts`"
 above.
 
-**A governorate field, or an editable shipping name.** Not asked for this
-round; `shippingGovernorate` stays `null` and `shippingName` is inferred from
-the account rather than typed.
+**An editable shipping name.** Not asked for; `shippingName` is inferred from
+the signed-in account rather than typed. (The governorate field this bullet
+used to name is built now — see "The checkout form" above.)
 
 **Multiple saved addresses / an address book.** Every checkout collects a
 fresh address; nothing is remembered on the `User` for next time. The
@@ -323,10 +388,6 @@ means even a saved-address feature would still write a fresh copy onto each
 ---
 
 ## Extending this
-
-**A governorate selector.** Add the field to `checkout.schema.ts`, the form,
-and `createOrder`'s `data`. `shippingGovernorate` is already a column;
-nothing else moves.
 
 **Real-time stock warnings on `/checkout`.** `CheckoutSummary` reads the same
 `getCart()` result the page already has, which is already stock-aware

@@ -166,10 +166,11 @@ which is what makes the variant grid stable across runs.
   the resolved end (`DELIVERED` most common, a few `PENDING` / `CONFIRMED` /
   `IN_PRODUCTION` so the "open orders" count is non-zero, one in ~twenty
   `CANCELLED`), and an **Egyptian shipping-address snapshot** on the
-  `Order.shipping*` columns (name + phone from the customer, a street /
-  building / area / governorate picked from a fixed list) — the same shape
-  checkout will write, so [`orders-feature.md`](./orders-feature.md)'s detail
-  page has an address to render.
+  `Order.shipping*` columns (name + phone from the customer, and a
+  governorate / city / center / street / building each picked from a fixed
+  list) — the same shape checkout writes, so
+  [`orders-feature.md`](./orders-feature.md)'s detail page has an address to
+  render.
 
 Cancelled orders are excluded from a customer's lifetime-value figure, which
 matches how [`customers-feature.md`](./customers-feature.md) computes it.
@@ -195,8 +196,13 @@ instead.
 
 The source data is a handful of arrays at the top of
 [`scripts/seed-dev.mts`](../scripts/seed-dev.mts): `CATEGORIES`,
-`INGREDIENTS`, `PRODUCTS`, `CUSTOMERS`, plus `SHIPPING_AREAS` / `STREETS` for
-order addresses. Add an entry and re-run; the upserts make it additive. The
+`INGREDIENTS`, `PRODUCTS`, `CUSTOMERS`, plus `SHIPPING_AREAS` (governorate +
+city pairs), `CENTERS` and `STREETS` for order addresses. The governorates in
+`SHIPPING_AREAS` are a subset of `EGYPT_GOVERNORATES`
+(`src/constants/egypt.ts`), written out again by hand rather than imported —
+this script runs through plain Node type-stripping with no bundler, so it has
+no `@/` path-alias resolution. Add an entry and re-run; the upserts make it
+additive. The
 only rule is that a `PRODUCT` entry's `ingredients[].name` must match an
 `INGREDIENTS` entry exactly, or the link is silently skipped.
 
