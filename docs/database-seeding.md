@@ -180,16 +180,40 @@ matches how [`customers-feature.md`](./customers-feature.md) computes it.
 
 ## Resetting
 
-There is no `--reset` flag. To start from an empty database:
+There is no `--reset` flag on `seed-dev` itself; two different scripts empty
+the database, for two different reasons.
+
+```bash
+npm run reset-db     # DELETE every row, schema untouched
+npm run seed-dev      # …then refill it, or leave it empty
+```
+
+[`scripts/reset-db.mts`](../scripts/reset-db.mts) deletes every row through
+Prisma Client, children before parents (`OrderItem` → `Order` →
+`ProductIngredient` → `ProductVariant` → `ProductImage` → `Product` →
+`Ingredient` → `Category` → `User`) so the order never trips a foreign-key
+constraint regardless of that relation's own `onDelete`. It refuses to run
+with `NODE_ENV=production`, the same guard `seed-dev` uses, and for the same
+reason: this is a local-development command, not one to run against a
+database anyone depends on.
 
 ```bash
 npx prisma db push --force-reset   # drops and recreates every table
-npm run seed-dev
 ```
 
-`--force-reset` is destructive and unguarded — it is a local-development
-command and nothing else. On a database you care about, take a migration
-instead.
+This is the other way to get to empty, and the two are not the same
+operation. `--force-reset` drops and recreates every table **from the current
+schema** — the right tool the day `schema.prisma` changed and the old tables
+would not match it anyway — and needs `prisma generate` and DDL privileges
+on the database afterward. `reset-db` only issues `DELETE`s a normal
+application connection can already run: no schema drift risk, nothing to
+regenerate, and it works over the same connection `seed-dev` and the app
+itself use. Reach for `reset-db` to clear the data; reach for `--force-reset`
+when the schema itself moved.
+
+Both are destructive and unguarded in the sense that neither asks "are you
+sure?" — that is what the `NODE_ENV=production` refusal is for. On a database
+you care about, take a migration instead of either.
 
 ---
 

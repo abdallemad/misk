@@ -265,6 +265,27 @@ destination to group:
   (`/contact`) — the two marketing pages `landing-page.md` documents in full;
   this file only notes that they exist in the same header nav.
 
+### «لوحة التحكم» — an admin-only link, checked server-side
+
+`StoreHeader` itself (not `StoreNavMenu`) renders a plain button linking to
+`/admin`, shown only when `services/auth.service.ts`'s `isAdmin()` returns
+`true`. Unlike «حسابي» above, this is **not** gated behind a client-side
+`<Show>`: `isAdmin()` is a `server-only` Clerk read, so `StoreHeader` (already
+`async` for `getCartCount` and `listCatalogCategories`) awaits it alongside
+the other two and passes a plain `boolean` down. That is safe here in a way it
+would not be for signed-in/signed-out: a shopper can sign in or out mid-session
+through the auth modal with no page navigation, which is exactly what `<Show>`
+exists to track live, but nobody's own role changes under them mid-session —
+[`admin-access-control.md`](./admin-access-control.md) already documents that
+a role change takes effect on the affected user's *next request*, so a value
+fixed at the header's last render is already as fresh as the rest of the app
+promises.
+
+Hidden with the same `hidden sm:flex` pair `AuthNav` / `ThemeToggle` use on
+desktop, and duplicated inside `MobileNav`'s drawer (its own `isAdmin` prop,
+same value) as a «الإدارة» section below «حسابي» — a non-admin visitor never
+receives the link in either markup, not just a hidden-but-present one.
+
 ### `NavigationMenu`, not `Menu` — a different Base UI primitive on purpose
 
 `components/ui/dropdown-menu.tsx` already wraps Base UI's `Menu` — the

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Show } from "@clerk/nextjs"
 import {
   BookOpenIcon,
+  LayoutDashboardIcon,
   MenuIcon,
   MessageCircleIcon,
   ReceiptTextIcon,
@@ -30,6 +31,9 @@ import type { StoreCategory } from "@/services/catalog.service"
 
 type MobileNavProps = {
   categories: StoreCategory[]
+  /** From `StoreHeader`'s server-side `isAdmin()` — see its own doc comment
+   *  for why this is a plain prop rather than a client-reactive `<Show>`. */
+  isAdmin: boolean
 }
 
 const linkClass =
@@ -70,8 +74,15 @@ const linkClass =
  * account/appearance controls, not destinations to navigate to, the same
  * distinction `StoreHeader` already draws by keeping them in their own
  * cluster apart from the nav.
+ *
+ * **«لوحة التحكم» is a plain `isAdmin` prop, not another `<Show>`.** Unlike
+ * «حسابي» just above it, whether *this* visitor is an admin cannot change
+ * mid-session through the auth modal the way signed-in/signed-out can — so
+ * the value `StoreHeader` computed server-side at render time is already as
+ * fresh as it needs to be. It sits in its own section below «حسابي», since an
+ * admin is a signed-in shopper first.
  */
-export function MobileNav({ categories }: MobileNavProps) {
+export function MobileNav({ categories, isAdmin }: MobileNavProps) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
 
@@ -136,6 +147,17 @@ export function MobileNav({ categories }: MobileNavProps) {
               السلة
             </Link>
           </Show>
+
+          {isAdmin ? (
+            <>
+              <Separator className="my-2" />
+              <p className="eyebrow px-2.5">الإدارة</p>
+              <Link href={ROUTES.admin} onClick={close} className={linkClass}>
+                <LayoutDashboardIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                لوحة التحكم
+              </Link>
+            </>
+          ) : null}
         </nav>
 
         <SheetFooter className="flex-row items-center justify-between border-t border-border">

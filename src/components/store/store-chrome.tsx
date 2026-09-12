@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ShoppingBagIcon } from "lucide-react"
+import { LayoutDashboardIcon, ShoppingBagIcon } from "lucide-react"
 
 import { AuthNav } from "@/components/shared/auth-nav"
 import { BrandLockup } from "@/components/shared/brand-lockup"
@@ -9,6 +9,7 @@ import { StoreNavMenu } from "@/components/store/store-nav"
 import { buttonVariants } from "@/components/ui/button"
 import { ROUTES } from "@/constants/routes"
 import { cn } from "@/lib/utils"
+import { isAdmin } from "@/services/auth.service"
 import { getCartCount } from "@/services/cart.service"
 import { listCatalogCategories } from "@/services/catalog.service"
 
@@ -39,23 +40,35 @@ import { listCatalogCategories } from "@/services/catalog.service"
  * row stays to exactly two controls (the menu trigger, the cart icon) and
  * doesn't get crowded fitting a sign-in button and a theme toggle into the
  * same 375px row `StoreNavMenu`'s dropdowns already had to be hidden from.
+ *
+ * **«لوحة التحكم» follows the identical split.** `isAdmin()` is checked here,
+ * server-side — the same "next request" freshness `admin-access-control.md`
+ * already documents for a role change, not the client-reactive `<Show>`
+ * `StoreNavMenu`'s «حسابي» dropdown uses for sign-in/out, which can happen
+ * mid-session through the auth modal without a page navigation. A role
+ * change cannot happen to a shopper acting on themselves, so a value fixed
+ * at render time is the right amount of freshness. Hidden with the same
+ * `sm:flex` pair on desktop, and duplicated inside `MobileNav`'s drawer below
+ * `sm`, for a non-admin visitor to never see the console link at all.
  */
 
-/** `StoreHeader` is `async` for two cheap reads: `getCartCount` (a cookie
- *  sum, not a query — see its own doc) and `listCatalogCategories` (the same
- *  active-categories list `/store`'s own chips already fetch), handed down to
- *  whichever of `StoreNavMenu` / `MobileNav` the viewport renders. */
+/** `StoreHeader` is `async` for three cheap reads: `getCartCount` (a cookie
+ *  sum, not a query — see its own doc), `listCatalogCategories` (the same
+ *  active-categories list `/store`'s own chips already fetch), and
+ *  `isAdmin()` (a Clerk read, no database query) — handed down to whichever
+ *  of `StoreNavMenu` / `MobileNav` the viewport renders. */
 export async function StoreHeader() {
-  const [count, categories] = await Promise.all([
+  const [count, categories, admin] = await Promise.all([
     getCartCount(),
     listCatalogCategories(),
+    isAdmin(),
   ])
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-page items-center justify-between gap-4 px-4 sm:px-6">
         <div className="order-first sm:order-none sm:hidden">
-          <MobileNav categories={categories} />
+          <MobileNav categories={categories} isAdmin={admin} />
         </div>
 
         <BrandLockup size="sm" />
@@ -66,6 +79,12 @@ export async function StoreHeader() {
 
         <div className="flex items-center gap-1">
           <div className="hidden items-center gap-1 sm:flex">
+            {admin ? (
+              <Link href={ROUTES.admin} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                <LayoutDashboardIcon data-icon="inline-start" aria-hidden="true" />
+                لوحة التحكم
+              </Link>
+            ) : null}
             <AuthNav />
             <ThemeToggle />
           </div>

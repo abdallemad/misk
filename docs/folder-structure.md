@@ -740,13 +740,15 @@ prisma/
 ```
 
 > **Seeding does not live in `prisma/`.** There is no `prisma/seed.ts` and no
-> `prisma.seed` config. Seed scripts are `scripts/*.mts`, run through Node's
-> own type stripping with no extra dependency:
+> `prisma.seed` config. Scripts are `scripts/*.mts`, run through Node's own
+> type stripping with no extra dependency:
 > [`scripts/seed-categories.mts`](../scripts/seed-categories.mts) (the three
-> founding segments — [`categories-feature.md`](./categories-feature.md)) and
+> founding segments — [`categories-feature.md`](./categories-feature.md)),
 > [`scripts/seed-dev.mts`](../scripts/seed-dev.mts) (`npm run seed-dev` — a
-> full mock catalog, customers and orders for development, documented in
-> [`database-seeding.md`](./database-seeding.md)).
+> full mock catalog, customers and orders for development), and
+> [`scripts/reset-db.mts`](../scripts/reset-db.mts) (`npm run reset-db` —
+> deletes every row, schema untouched), both documented in
+> [`database-seeding.md`](./database-seeding.md).
 
 Core models (see [`erd.md`](./erd.md) for the full diagram):
 
