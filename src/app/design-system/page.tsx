@@ -186,7 +186,7 @@ const DISPLAY_SAMPLES = [
   ["display-lg", "text-display-lg", "خط الدهن الخالص"],
   ["display-md", "text-display-md", "المكوّنات والصناعة"],
   ["display-sm", "text-display-sm", "عنبر الورد"],
-  ["display-xs", "text-display-xs", "العبوة الفاخرة"],
+  ["display-xs", "text-display-xs", "نفحة العنبر"],
 ] as const
 
 const RADII = [
@@ -253,8 +253,8 @@ export default function DesignSystemPage() {
           <p className="mt-6 max-w-prose text-base text-muted-foreground">
             يبيع مِسك العطر الواحد بأشكال عدّة — <span data-numeric>30</span> أو{" "}
             <span data-numeric>50</span> أو <span data-numeric>100</span>{" "}
-            مليلتر، في عبوة فاخرة أو عادية، أو دهنًا خالصًا يُباع بالجرام. نظام
-            التصميم موجود كي لا يبدو هذا التشعّب فوضى.
+            مليلتر، أو دهنًا خالصًا يُباع بالجرام. نظام التصميم موجود كي لا
+            يبدو هذا التشعّب فوضى.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button variant="gold" size="xl">
@@ -475,7 +475,7 @@ export default function DesignSystemPage() {
                 <span className="font-medium text-foreground" data-numeric>
                   {formatPrice(540)}
                 </span>{" "}
-                للعبوة العادية.
+                لحجم 30 مل.
               </p>
             </div>
           </Block>
@@ -680,7 +680,7 @@ export default function DesignSystemPage() {
                 </EmptyMedia>
                 <EmptyTitle>لا عطر يطابق هذه الفلاتر</EmptyTitle>
                 <EmptyDescription>
-                  جرّب توسيع نطاق الأحجام، أو امسح فلتر نوع العبوة.
+                  جرّب توسيع نطاق الأحجام، أو امسح فلتر النوع.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
@@ -692,7 +692,7 @@ export default function DesignSystemPage() {
           id="patterns"
           eyebrow="الأنماط"
           title="الكتالوج"
-          description="هنا يلتقي النظام بنموذج المنتج: شكلان للخيارات، وتخطيط واحد. الخط الكحولي يختار الحجم ثم العبوة، وخط الدهن يختار الوزن فقط."
+          description="هنا يلتقي النظام بنموذج المنتج: شكلان للخيارات، وتخطيط واحد. الخط الكحولي يختار الحجم، وخط الدهن يختار الوزن فقط."
         >
           <Block title="بطاقة المنتج">
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -766,16 +766,6 @@ export default function DesignSystemPage() {
                   </ToggleGroupItem>
                 </ToggleGroup>
 
-                <p className="eyebrow mt-6">العبوة</p>
-                <ToggleGroup
-                  className="mt-2"
-                  variant="outline"
-                  defaultValue={["luxury"]}
-                >
-                  <ToggleGroupItem value="regular">عادية</ToggleGroupItem>
-                  <ToggleGroupItem value="luxury">فاخرة</ToggleGroupItem>
-                </ToggleGroup>
-
                 <Separator className="my-6" />
                 <div className="flex items-end justify-between">
                   <p className="font-display text-display-sm" data-numeric>
@@ -810,7 +800,7 @@ export default function DesignSystemPage() {
                   </ToggleGroupItem>
                 </ToggleGroup>
                 <p className="mt-3 text-sm text-muted-foreground">
-                  دهن خالص غير مخفّف — بلا كحول، وبلا اختيار عبوة.
+                  دهن خالص غير مخفّف — بلا كحول.
                 </p>
 
                 <Separator className="my-6" />

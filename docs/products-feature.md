@@ -1,7 +1,7 @@
 # Products Feature
 
 Admin CRUD for the thing the shop actually sells — a perfume, its gallery,
-and the collection of sizes, bottle styles or weights it is bought in.
+and the collection of sizes or weights it is bought in.
 
 ## Related documents
 
@@ -47,10 +47,10 @@ things that are not the same shape.
 
 | | Sold by | Variant columns |
 | --- | --- | --- |
-| `ALCOHOL_BASED` | volume × packaging | `bottleSize` + `bottleStyle` |
+| `ALCOHOL_BASED` | volume | `bottleSize` |
 | `RAW_OIL` (دهن) | weight | `oilWeight` |
 
-`ProductVariant` carries all three columns as nullable and the rule is
+`ProductVariant` carries both columns as nullable and the rule is
 enforced in the application, because Prisma has no CHECK-constraint DSL —
 the schema comment says as much. "Enforced in the application" is vague
 enough to become "enforced nowhere", so it is worth being exact about where:
@@ -70,6 +70,25 @@ Both, not either. The schema is what an admin sees — in the browser *and* on
 the way back from the server, since it runs in both. The service is what a
 direct `POST` to the Server Action hits, and what a future seed script or
 background job hits too. They are guarding different callers.
+
+### The bottle-style axis was removed
+
+`misk_business_analysis.md` §4.1 originally specified a second alcohol-line
+axis — a Luxury/Regular bottle-style choice, priced as its own multiplier
+alongside size and oil grade. `ProductVariant.bottleStyle` (a `BottleStyle`
+enum, `LUXURY` | `REGULAR`) carried it, `VARIANT_AXES.ALCOHOL_BASED` required
+it, and every variant label read "100ml · عبوة فاخرة" instead of just "100ml".
+
+That axis is gone now — a shop decision, not a technical one: an
+`ALCOHOL_BASED` perfume is sold by size alone, the same one-axis shape
+`RAW_OIL` already had. The removal touched every layer that ever named
+`bottleStyle`: the Prisma enum and column (dropped, not just made nullable —
+there was no reason to keep dead columns around), `VARIANT_AXES` and the
+variant-editor select, `formatVariantLabel` (back to a bare size string),
+the `uniqueVariantCombination` index (see below), the generated SKU's `-LUX`
+/ `-REG` suffix, and `scripts/seed-dev.mts`'s variant grid (3 rows per
+alcohol product now, not 6). Nothing about the `RAW_OIL` line changed — it
+never had this axis to lose.
 
 ### Switching the type of an existing product
 
@@ -164,12 +183,12 @@ would leave a stale `bottleSize` behind.
 The schema has this index:
 
 ```prisma
-@@unique([productId, bottleSize, bottleStyle, oilWeight, oilGrade])
+@@unique([productId, bottleSize, oilWeight, oilGrade])
 ```
 
 **It does not do what it looks like it does.** PostgreSQL treats `NULL` as
 distinct from every other `NULL`, so two raw-oil rows that are both
-`(null, null, G_8, null)` do not violate it. The database cannot be the guard
+`(null, G_8, null)` do not violate it. The database cannot be the guard
 here, which is why the check is written out in both the schema module and the
 service.
 
@@ -214,12 +233,12 @@ through to a logged generic.
 it. `mintSkus()` builds one per new row:
 
 ```text
-MISK-ROSE-100ML-LUX      alcohol: slug + size + style
+MISK-ROSE-100ML          alcohol: slug + size
 MISK-ROSE-8G             raw oil: slug + weight
 MISK-ROSE-8G-GRADEA      …plus a grade code when there is one
 ```
 
-The form already asks for six things per row; a seventh that the admin has to
+The form already asks for five things per row; a sixth that the admin has to
 keep globally unique is a job for a computer. Two properties carry the weight:
 
 **Minted once.** An existing variant keeps its code through a rename, a
@@ -605,7 +624,7 @@ endpoint that never renders that layout, so **both actions re-check
 | `src/services/product.service.ts` | Every rule about products |
 | `src/services/ingredient.service.ts` | The raw-material master list |
 | `src/components/ui/form.tsx` | Base UI `Form` — `noValidate`, the error map, focus-first-invalid |
-| `src/constants/catalog.ts` | The four enums, in order, with their Arabic |
+| `src/constants/catalog.ts` | The three enums, in order, with their Arabic |
 | `src/utils/slug.ts` | The slug rule, shared with categories |
 
 ### `constants/catalog.ts`, and why the enums are written out twice

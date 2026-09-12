@@ -9,13 +9,7 @@ import { addToCartAction } from "@/actions/cart/add-to-cart"
 import { StockBadge } from "@/components/shared/status-badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Spinner } from "@/components/ui/spinner"
 import { MAX_LINE_QUANTITY } from "@/constants/cart"
 import { ROUTES } from "@/constants/routes"
@@ -27,8 +21,16 @@ type AddToCartFormProps = {
 }
 
 /**
- * The product page's buy box: **the `<select>` for the perfume's options**,
- * a quantity stepper, and «اشترِ الآن» / «أضف إلى السلة».
+ * The product page's buy box: **a row of size/weight toggle buttons** for the
+ * perfume's options, a quantity stepper, and «اشترِ الآن» / «أضف إلى السلة».
+ *
+ * A `<Select>` used to do the picking — every option's label, grade and price
+ * in a dropdown, "نفد المخزون" appended for one with none. Buttons read
+ * faster for a handful of options (never more than three sizes or three
+ * weights — see `constants/catalog.ts`), at the cost of the price list a
+ * dropdown could show for every option at once: only the *selected*
+ * variant's price is shown now, next to the stock badge, the same split
+ * `/design-system`'s own variant-selector demo already uses.
  *
  * **«اشترِ الآن» is wired up now.** It used to be disabled unconditionally —
  * checkout did not exist yet when this form was written, and "buy now" has
@@ -113,59 +115,65 @@ export function AddToCartForm({ variants }: AddToCartFormProps) {
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border p-4">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="variant-select">الحجم / الخيار</Label>
-        <Select
-          items={variantItems(variants)}
-          value={variantId}
-          onValueChange={(value) => pickVariant(String(value))}
+        <Label>الحجم / الخيار</Label>
+        <ToggleGroup
+          aria-label="الحجم / الخيار"
+          variant="outline"
+          value={variantId ? [variantId] : []}
+          onValueChange={(value) => {
+            // `multiple` is off, so clicking the pressed badge again would
+            // otherwise report an empty array — one option must always stay
+            // selected, so an empty change is ignored rather than applied.
+            if (value[0]) pickVariant(value[0])
+          }}
           disabled={pending || buyNowPending}
         >
-          <SelectTrigger id="variant-select" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {variants.map((variant) => (
-              <SelectItem
-                key={variant.id}
-                value={variant.id}
-                disabled={variant.stock <= 0}
-              >
-                {variantOptionLabel(variant)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {variants.map((variant) => (
+            <ToggleGroupItem
+              key={variant.id}
+              value={variant.id}
+              disabled={variant.stock <= 0}
+            >
+              {variantBadgeLabel(variant)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
 
       {selected ? (
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2" role="group" aria-label="الكمية">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              onClick={() => setQuantity((value) => Math.max(1, value - 1))}
-              disabled={pending || buyNowPending || outOfStock || quantity <= 1}
-            >
-              <MinusIcon aria-hidden="true" />
-            </Button>
-            <span className="w-6 text-center text-sm tabular-nums" data-numeric>
-              {quantity}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              onClick={() =>
-                setQuantity((value) => Math.min(maxQuantity, value + 1))
-              }
-              disabled={pending || buyNowPending || outOfStock || quantity >= maxQuantity}
-            >
-              <PlusIcon aria-hidden="true" />
-            </Button>
-          </div>
-
+          <span className="font-display text-lg" data-numeric>
+            {formatPrice(selected.price)}
+          </span>
           <StockBadge stock={selected.stock} />
+        </div>
+      ) : null}
+
+      {selected ? (
+        <div className="flex items-center gap-2" role="group" aria-label="الكمية">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+            disabled={pending || buyNowPending || outOfStock || quantity <= 1}
+          >
+            <MinusIcon aria-hidden="true" />
+          </Button>
+          <span className="w-6 text-center text-sm tabular-nums" data-numeric>
+            {quantity}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={() =>
+              setQuantity((value) => Math.min(maxQuantity, value + 1))
+            }
+            disabled={pending || buyNowPending || outOfStock || quantity >= maxQuantity}
+          >
+            <PlusIcon aria-hidden="true" />
+          </Button>
         </div>
       ) : null}
 
@@ -207,20 +215,15 @@ export function AddToCartForm({ variants }: AddToCartFormProps) {
   )
 }
 
-function variantOptionLabel(variant: StoreVariant): string {
+/**
+ * A badge's own label — just enough to tell two options apart. The price
+ * moved to a separate line for the *selected* variant instead of living on
+ * every button, and stock is `StockBadge`'s job, not a "— نفد المخزون" suffix
+ * — the button's own `disabled` state already says that.
+ */
+function variantBadgeLabel(variant: StoreVariant): string {
   const parts = [variant.label]
   if (variant.oilGrade) parts.push(variant.oilGrade)
 
-  const price = formatPrice(variant.price)
-  const suffix = variant.stock <= 0 ? " — نفد المخزون" : ""
-
-  return `${parts.join(" · ")} — ${price}${suffix}`
-}
-
-/** `items` is what lets `<SelectValue>` render a label instead of the raw id. */
-function variantItems(variants: StoreVariant[]) {
-  return variants.map((variant) => ({
-    value: variant.id,
-    label: variantOptionLabel(variant),
-  }))
+  return parts.join(" · ")
 }

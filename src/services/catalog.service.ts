@@ -96,7 +96,7 @@ export const STORE_PAGE_SIZE = 12
 /** One purchasable option on the product page, flattened for display. */
 export type StoreVariant = {
   id: string
-  /** "100ml · عبوة فاخرة" or "8g" — `formatVariantLabel`. */
+  /** "100ml" or "8g" — `formatVariantLabel`. */
   label: string
   oilGrade: string | null
   price: number
@@ -307,14 +307,12 @@ export const getStoreProduct = cache(
           // same ordering `product.service.getProduct` relies on.
           orderBy: [
             { bottleSize: "asc" },
-            { bottleStyle: "asc" },
             { oilWeight: "asc" },
             { oilGrade: "asc" },
           ],
           select: {
             id: true,
             bottleSize: true,
-            bottleStyle: true,
             oilWeight: true,
             oilGrade: true,
             price: true,
@@ -331,7 +329,6 @@ export const getStoreProduct = cache(
       label: formatVariantLabel({
         productType: product.productType,
         bottleSize: variant.bottleSize,
-        bottleStyle: variant.bottleStyle,
         oilWeight: variant.oilWeight,
       }),
       oilGrade: variant.oilGrade,

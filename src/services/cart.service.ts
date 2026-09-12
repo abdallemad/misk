@@ -33,7 +33,7 @@ export type CartLine = {
   variantId: string
   productSlug: string
   productName: string
-  /** "100ml · عبوة فاخرة" or "8g" — `formatVariantLabel`. */
+  /** "100ml" or "8g" — `formatVariantLabel`. */
   label: string
   oilGrade: string | null
   imageUrl: string | null
@@ -90,7 +90,6 @@ export async function getCart(): Promise<CartView> {
       price: true,
       stock: true,
       bottleSize: true,
-      bottleStyle: true,
       oilWeight: true,
       oilGrade: true,
       product: {
@@ -136,7 +135,6 @@ export async function getCart(): Promise<CartView> {
       label: formatVariantLabel({
         productType: variant.product.productType,
         bottleSize: variant.bottleSize,
-        bottleStyle: variant.bottleStyle,
         oilWeight: variant.oilWeight,
       }),
       oilGrade: variant.oilGrade,

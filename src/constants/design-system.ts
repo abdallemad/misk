@@ -221,9 +221,8 @@ export function categoryAccent(slug: string): CategoryAccent {
  * Product type
  *
  * The one branch that runs through the whole app: an ALCOHOL product is sold
- * by volume with a bottle style, a RAW_OIL product by weight with none.
- * Giving each an accent lets a shopper tell the two lines apart at a glance
- * in a mixed grid.
+ * by volume, a RAW_OIL product by weight. Giving each an accent lets a
+ * shopper tell the two lines apart at a glance in a mixed grid.
  * ---------------------------------------------------------------------- */
 
 /**

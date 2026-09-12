@@ -224,7 +224,6 @@ function mapOrderDetail(order: OrderWithDetail): OrderDetail {
       variantLabel: formatVariantLabel({
         productType: item.variant.product.productType,
         bottleSize: item.variant.bottleSize,
-        bottleStyle: item.variant.bottleStyle,
         oilWeight: item.variant.oilWeight,
       }),
       quantity: item.quantity,

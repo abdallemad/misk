@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     template: "%s · مِسك",
   },
   description:
-    "عطور نُحضّرها بأنفسنا من كحول طبي نقي وزيوت عطرية فاخرة. اختر الحجم، واختر العبوة، أو خذها دهن عود خالص.",
+    "عطور نُحضّرها بأنفسنا من كحول طبي نقي وزيوت عطرية فاخرة. اختر الحجم، أو خذها دهن عود خالص.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

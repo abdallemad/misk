@@ -139,8 +139,8 @@ type ProductSeed = {
   productType: "ALCOHOL_BASED" | "RAW_OIL"
   description: string
   ingredients: { name: string; note: string }[]
-  /** Base price for the cheapest variant, in whole EGP. Larger sizes / the
-   *  luxury bottle / more grams scale up from here. */
+  /** Base price for the cheapest variant, in whole EGP. Larger sizes / more
+   *  grams scale up from here. */
   basePrice: number
   /** A few products are pulled from the storefront so "hidden" has a row. */
   isActive?: boolean
@@ -395,14 +395,12 @@ const STREETS = [
 ]
 
 const BOTTLE_SIZES = ["ML_30", "ML_50", "ML_100"] as const
-const BOTTLE_STYLES = ["LUXURY", "REGULAR"] as const
 const OIL_WEIGHTS = ["G_5", "G_8", "G_12"] as const
 
 /** The columns one seeded variant writes — `null` on every axis its product
  *  type does not use, exactly as `product.service.variantColumns` does. */
 type VariantData = {
   bottleSize: (typeof BOTTLE_SIZES)[number] | null
-  bottleStyle: (typeof BOTTLE_STYLES)[number] | null
   oilWeight: (typeof OIL_WEIGHTS)[number] | null
   oilGrade: string | null
   price: string
@@ -444,11 +442,9 @@ function pickStatus(): SeedOrderStatus {
  * ====================================================================== */
 
 const SIZE_MULTIPLIER: Record<string, number> = { ML_30: 1, ML_50: 1.6, ML_100: 2.7 }
-const STYLE_MULTIPLIER: Record<string, number> = { LUXURY: 1.35, REGULAR: 1 }
 const WEIGHT_MULTIPLIER: Record<string, number> = { G_5: 1, G_8: 1.5, G_12: 2.1 }
 
 const SIZE_CODE: Record<string, string> = { ML_30: "30ML", ML_50: "50ML", ML_100: "100ML" }
-const STYLE_CODE: Record<string, string> = { LUXURY: "LUX", REGULAR: "REG" }
 const WEIGHT_CODE: Record<string, string> = { G_5: "5G", G_8: "8G", G_12: "12G" }
 
 /** A price string with exactly two decimals — Prisma writes a string into a
@@ -539,28 +535,22 @@ async function seedProduct(
     })
   }
 
-  // Variant grid. Alcohol → every size × style; raw oil → every weight. Each
-  // is upserted on its generated SKU, so the set is stable across runs.
+  // Variant grid. Alcohol → every size; raw oil → every weight. Each is
+  // upserted on its generated SKU, so the set is stable across runs.
   const activeVariantIds: string[] = []
   const combos: { data: VariantData; sku: string }[] = []
 
   if (product.productType === "ALCOHOL_BASED") {
     for (const size of BOTTLE_SIZES) {
-      for (const style of BOTTLE_STYLES) {
-        combos.push({
-          sku: skuFor(product.slug, [SIZE_CODE[size]!, STYLE_CODE[style]!]),
-          data: {
-            bottleSize: size,
-            bottleStyle: style,
-            oilWeight: null,
-            oilGrade: null,
-            price: price(
-              product.basePrice,
-              SIZE_MULTIPLIER[size]! * STYLE_MULTIPLIER[style]!
-            ),
-          },
-        })
-      }
+      combos.push({
+        sku: skuFor(product.slug, [SIZE_CODE[size]!]),
+        data: {
+          bottleSize: size,
+          oilWeight: null,
+          oilGrade: null,
+          price: price(product.basePrice, SIZE_MULTIPLIER[size]!),
+        },
+      })
     }
   } else {
     for (const weight of OIL_WEIGHTS) {
@@ -568,7 +558,6 @@ async function seedProduct(
         sku: skuFor(product.slug, [WEIGHT_CODE[weight]!]),
         data: {
           bottleSize: null,
-          bottleStyle: null,
           oilWeight: weight,
           oilGrade: "درجة أولى",
           price: price(product.basePrice, WEIGHT_MULTIPLIER[weight]!),
