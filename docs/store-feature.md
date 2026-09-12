@@ -390,24 +390,48 @@ column, top to bottom:
 | Breadcrumb | `المتجر / <category> / <name>`; the first two are links, the category one filters the grid |
 | Heading | category (link) · type eyebrow, the name as `<h1>`, the "from" price |
 | Description | the full `Product.description` — required and NOT NULL, so always present |
-| **Buy box** | `AddToCartForm` — the options select, a quantity stepper, buy now (live — adds to cart, then pushes to `/checkout`) / add to cart (live) |
+| **Buy box** | `AddToCartForm` — the size/weight toggle buttons, a quantity stepper, buy now (live — adds to cart, then pushes to `/checkout`) / add to cart (live) |
 | الجودة والمكوّنات | the ingredient list with notes, only when the perfume has any (the panel [`misk_business_analysis.md`](./misk_business_analysis.md) §6 asks for) |
 
-### `AddToCartForm` replaces the old read-only variant list
+### `AddToCartForm`'s buy box picks with buttons, not a dropdown
 
-«اشترِ الآن» and «أضف إلى السلة» work very differently now. One `<select>` (`variantItems`) shows every
-option's label, grade and price — "نفد المخزون" appended, and the `<option>`
-itself disabled, for one with none — so it is the picker *and* the price list
-at once. A quantity stepper follows, capped at
-`min(selected.stock, MAX_LINE_QUANTITY)`.
+A `<select>` used to do the picking (`variantItems`, one `<option>` per
+variant showing its label, grade and price — "نفد المخزون" appended, and the
+option itself disabled, for one with none) — so it was the picker *and* the
+price list at once. It is a `ToggleGroup` now
+(`components/ui/toggle-group.tsx`, single-select — `multiple` is off, so
+pressing one badge un-presses the rest): one button per variant, labelled
+with just its size/weight and grade, disabled the same way for a variant with
+no stock. Never more than three buttons — `BOTTLE_SIZES` and `OIL_WEIGHTS`
+each have exactly three members (`constants/catalog.ts`) — so the row never
+wraps awkwardly the way a longer list of choices would.
+
+The trade this made: a `<select>` could show every option's price at once, a
+row of buttons cannot fit six words on each one. So the price moved to its
+own line below the buttons, for the *selected* variant only, beside the same
+`StockBadge` that used to sit next to the quantity stepper — the identical
+split [`design-system`](../src/app/design-system/page.tsx)'s own
+variant-selector demo already used, which this form now actually matches
+rather than merely resembling.
+
+**Controlled, and an empty change is ignored on purpose.** Base UI's
+`ToggleGroup` with `multiple` off still lets a shopper un-press the one active
+button by clicking it again, which would report an empty array — but this
+picker must always have exactly one variant selected, the same invariant the
+old `<select>` gave for free (a native select cannot be "cleared" by clicking
+its own selected option). `onValueChange` reads `value[0]`; when it is
+`undefined` the change is dropped, so the controlled `value` prop never
+passes the click through and the pressed badge stays pressed.
+
+A quantity stepper follows, capped at `min(selected.stock, MAX_LINE_QUANTITY)`.
 
 **Both buttons call `addToCartAction`; only «اشترِ الآن» also navigates.**
 Both add the selected variant + quantity to the cart. «أضف إلى السلة» stops
 there (a toast). «اشترِ الآن», on success, pushes to `/checkout` — a shopper
-who buy-nows from here has already picked a size from the `<select>` right
+who buy-nows from here has already picked a size from the buttons right
 above it, so skipping straight past `/cart` loses nothing. See
 [`cart-feature.md`](./cart-feature.md) for the full reasoning, including why
-the catalogue card's own «اشترِ الآن» stays disabled (no `<select>` there to
+the catalogue card's own «اشترِ الآن» stays disabled (no picker there to
 have already committed to a size) and why each button owns its **own**
 `pending` flag rather than sharing one (an earlier version's shared flag made
 *both* buttons flash a spinner when only one was pressed).
