@@ -33,16 +33,17 @@ Seeding development data → ep-….neon.tech
 
   categories   3
   ingredients  12
-  products     14  (60 active variants)
+  products     14  (35 active variants)
   customers    18  (clerkId seed_dev_*)
-  orders       29
+  orders       35
 
-Done. Database now holds 16 products, 74 variants, 20 users, 29 orders.
+Done. Database now holds 14 products, 42 variants, 18 users, 35 orders.
 ```
 
 The "database now holds" line counts **everything**, not just what this run
-wrote — the two-product gap above is real data that was already there. That is
-the point of the next section.
+wrote — on a database with pre-existing rows (a product added by hand through
+the admin console, say), the totals here would run ahead of the run's own
+numbers above them. That is the point of the next section.
 
 ---
 
@@ -141,10 +142,10 @@ npm run grant-admin -- you@example.com
 - **14 products** — 10 `ALCOHOL_BASED` and 4 `RAW_OIL`, spread across the three
   categories, two of them `isActive: false` so the "hidden" state has a row.
   Each links 1–4 ingredients with a `note`.
-- **Variants** — every alcohol product gets the full 3 sizes × 2 styles grid
-  (6 rows); every raw-oil product gets 3 weights. Prices scale from a per-
-  product base by size / style / weight multipliers and round to the nearest
-  10 EGP so the list reads like a real price sheet. Stock is drawn from a set
+- **Variants** — every alcohol product gets the full 3-size grid; every
+  raw-oil product gets 3 weights. Prices scale from a per-product base by
+  size / weight multipliers and round to the nearest 10 EGP so the list
+  reads like a real price sheet. Stock is drawn from a set
   that includes `0` and `2`, so the low-stock dashboard tile and the stock
   badges have something to show. Roughly one variant in twelve on an active
   product is retired.

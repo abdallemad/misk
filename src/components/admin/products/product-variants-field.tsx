@@ -23,8 +23,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   BOTTLE_SIZES,
   BOTTLE_SIZE_LABEL,
-  BOTTLE_STYLES,
-  BOTTLE_STYLE_LABEL,
   OIL_WEIGHTS,
   OIL_WEIGHT_LABEL,
 } from "@/constants/catalog"
@@ -64,14 +62,6 @@ const SIZE_ITEMS = [
   })),
 ]
 
-const STYLE_ITEMS = [
-  { value: null, label: "اختر العبوة" },
-  ...BOTTLE_STYLES.map((style) => ({
-    value: style,
-    label: BOTTLE_STYLE_LABEL[style],
-  })),
-]
-
 const WEIGHT_ITEMS = [
   { value: null, label: "اختر الوزن" },
   ...OIL_WEIGHTS.map((weight) => ({
@@ -84,8 +74,8 @@ const WEIGHT_ITEMS = [
  * The inline variant-collection editor — the one part of this console that
  * branches on `productType`.
  *
- * An `ALCOHOL_BASED` perfume is sold by **size × bottle style**; a `RAW_OIL`
- * by **weight** and nothing else. Switching the type at the top of the form
+ * An `ALCOHOL_BASED` perfume is sold by **size**; a `RAW_OIL` by **weight**
+ * and nothing else. Switching the type at the top of the form
  * swaps the selects here immediately, before the product has been saved,
  * which is the whole reason this is a Client Component: the shape of the
  * form depends on a value inside the form.
@@ -199,51 +189,27 @@ export function ProductVariantsField({
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {alcohol ? (
-                  <>
-                    <Field name={variantFieldName(key, "bottleSize")}>
-                      <FieldLabel htmlFor={`${key}-size`}>الحجم</FieldLabel>
-                      <Select
-                        name={variantFieldName(key, "bottleSize")}
-                        items={SIZE_ITEMS}
-                        defaultValue={variant?.bottleSize ?? null}
-                        disabled={disabled}
-                      >
-                        <SelectTrigger id={`${key}-size`} className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BOTTLE_SIZES.map((size) => (
-                            <SelectItem key={size} value={size}>
-                              {BOTTLE_SIZE_LABEL[size]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldError />
-                    </Field>
-
-                    <Field name={variantFieldName(key, "bottleStyle")}>
-                      <FieldLabel htmlFor={`${key}-style`}>العبوة</FieldLabel>
-                      <Select
-                        name={variantFieldName(key, "bottleStyle")}
-                        items={STYLE_ITEMS}
-                        defaultValue={variant?.bottleStyle ?? null}
-                        disabled={disabled}
-                      >
-                        <SelectTrigger id={`${key}-style`} className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BOTTLE_STYLES.map((style) => (
-                            <SelectItem key={style} value={style}>
-                              {BOTTLE_STYLE_LABEL[style]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldError />
-                    </Field>
-                  </>
+                  <Field name={variantFieldName(key, "bottleSize")}>
+                    <FieldLabel htmlFor={`${key}-size`}>الحجم</FieldLabel>
+                    <Select
+                      name={variantFieldName(key, "bottleSize")}
+                      items={SIZE_ITEMS}
+                      defaultValue={variant?.bottleSize ?? null}
+                      disabled={disabled}
+                    >
+                      <SelectTrigger id={`${key}-size`} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BOTTLE_SIZES.map((size) => (
+                          <SelectItem key={size} value={size}>
+                            {BOTTLE_SIZE_LABEL[size]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldError />
+                  </Field>
                 ) : (
                   <Field name={variantFieldName(key, "oilWeight")}>
                     <FieldLabel htmlFor={`${key}-weight`}>الوزن</FieldLabel>
@@ -344,7 +310,7 @@ export function ProductVariantsField({
 
         <FieldDescription>
           {alcohol
-            ? "لكل حجم ونوع عبوة سعرٌ ومخزونٌ مستقل. رمز المنتج (SKU) يُولَّد تلقائيًا عند الحفظ."
+            ? "لكل حجم سعرٌ ومخزونٌ مستقل. رمز المنتج (SKU) يُولَّد تلقائيًا عند الحفظ."
             : "الدهن يُباع بالوزن فقط. لكل وزن سعرٌ ومخزونٌ مستقل."}
         </FieldDescription>
 

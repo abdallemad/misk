@@ -1,9 +1,4 @@
-import type {
-  BottleSize,
-  BottleStyle,
-  OilWeight,
-  ProductType,
-} from "@prisma/client"
+import type { BottleSize, OilWeight, ProductType } from "@prisma/client"
 
 /**
  * The catalog's fixed vocabulary — the four Prisma enums, in the order they
@@ -62,12 +57,12 @@ export const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
 
 /** One line explaining what choosing this type commits the product to. */
 export const PRODUCT_TYPE_HINT: Record<ProductType, string> = {
-  ALCOHOL_BASED: "يُباع بالحجم ونوع العبوة — 30/50/100 مل، فاخرة أو عادية.",
-  RAW_OIL: "يُباع بالوزن فقط — 5/8/12 جرام، بلا نوع عبوة.",
+  ALCOHOL_BASED: "يُباع بالحجم — 30/50/100 مل.",
+  RAW_OIL: "يُباع بالوزن فقط — 5/8/12 جرام.",
 }
 
 /* -------------------------------------------------------------------------
- * Alcohol-based line — bottle size × bottle style
+ * Alcohol-based line — bottle size
  * ---------------------------------------------------------------------- */
 
 export const BOTTLE_SIZES = [
@@ -90,21 +85,6 @@ export const BOTTLE_SIZE_LABEL: Record<BottleSize, string> = {
   ML_30: "30ml",
   ML_50: "50ml",
   ML_100: "100ml",
-}
-
-export const BOTTLE_STYLES = [
-  "LUXURY",
-  "REGULAR",
-] as const satisfies readonly BottleStyle[]
-
-export type _BottleStylesExhaustive = Exhaustive<
-  BottleStyle,
-  (typeof BOTTLE_STYLES)[number]
->
-
-export const BOTTLE_STYLE_LABEL: Record<BottleStyle, string> = {
-  LUXURY: "عبوة فاخرة",
-  REGULAR: "عبوة عادية",
 }
 
 /* -------------------------------------------------------------------------
@@ -151,8 +131,8 @@ export function isMember<T extends string>(
 /** The variant fields a product of this type is sold by. */
 export const VARIANT_AXES: Record<
   ProductType,
-  readonly ("bottleSize" | "bottleStyle" | "oilWeight")[]
+  readonly ("bottleSize" | "oilWeight")[]
 > = {
-  ALCOHOL_BASED: ["bottleSize", "bottleStyle"],
+  ALCOHOL_BASED: ["bottleSize"],
   RAW_OIL: ["oilWeight"],
 }

@@ -251,7 +251,6 @@ export async function getCustomer(id: string): Promise<CustomerDetail | null> {
       variantLabel: formatVariantLabel({
         productType: item.variant.product.productType,
         bottleSize: item.variant.bottleSize,
-        bottleStyle: item.variant.bottleStyle,
         oilWeight: item.variant.oilWeight,
       }),
       quantity: item.quantity,

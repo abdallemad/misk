@@ -1,15 +1,6 @@
-import type {
-  BottleSize,
-  BottleStyle,
-  OilWeight,
-  ProductType,
-} from "@prisma/client"
+import type { BottleSize, OilWeight, ProductType } from "@prisma/client"
 
-import {
-  BOTTLE_SIZE_LABEL,
-  BOTTLE_STYLE_LABEL,
-  OIL_WEIGHT_LABEL,
-} from "@/constants/catalog"
+import { BOTTLE_SIZE_LABEL, OIL_WEIGHT_LABEL } from "@/constants/catalog"
 
 /**
  * Formatting — the numeric half of an Arabic design system.
@@ -57,8 +48,8 @@ export function formatDate(date: Date | string): string {
  *
  * The one string that has to say what a shopper actually bought, and the one
  * place the two variant shapes are flattened into a single line of text:
- * "100ml · عبوة فاخرة" for the alcohol line, "8g" for raw oil. Order line
- * items snapshot this string at purchase time.
+ * "100ml" for the alcohol line, "8g" for raw oil. Order line items snapshot
+ * this string at purchase time.
  *
  * The vocabulary itself lives in `constants/catalog.ts` — this module owns
  * the *sentence*, not the words, the same split `constants/design-system.ts`
@@ -66,11 +57,11 @@ export function formatDate(date: Date | string): string {
  * ---------------------------------------------------------------------- */
 
 /**
- * The four columns of a `ProductVariant` that decide its label, shaped
+ * The three columns of a `ProductVariant` that decide its label, shaped
  * exactly as Prisma returns them.
  *
  * Nullable on purpose, even though a well-formed variant always has the
- * fields its product type calls for: `product.service.ts` is what guarantees
+ * field its product type calls for: `product.service.ts` is what guarantees
  * that, and a formatter that re-states the guarantee in its types just moves
  * the cast to the call site. Here a violation renders as "—" instead of
  * crashing a page.
@@ -78,7 +69,6 @@ export function formatDate(date: Date | string): string {
 export type VariantShape = {
   productType: ProductType
   bottleSize: BottleSize | null
-  bottleStyle: BottleStyle | null
   oilWeight: OilWeight | null
 }
 
@@ -87,7 +77,5 @@ export function formatVariantLabel(variant: VariantShape): string {
     return variant.oilWeight ? OIL_WEIGHT_LABEL[variant.oilWeight] : "—"
   }
 
-  if (!variant.bottleSize || !variant.bottleStyle) return "—"
-
-  return `${BOTTLE_SIZE_LABEL[variant.bottleSize]} · ${BOTTLE_STYLE_LABEL[variant.bottleStyle]}`
+  return variant.bottleSize ? BOTTLE_SIZE_LABEL[variant.bottleSize] : "—"
 }

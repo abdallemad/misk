@@ -172,8 +172,8 @@ sellability gate** as `listCatalog` — the perfume and its category both
 `isActive`, at least one active variant — so a stale link to a retired
 perfume is a 404, not a broken page. Returns the gallery URLs in order, the
 active variants flattened to `{ label, oilGrade, price, stock }` (label from
-`formatVariantLabel`, so "100ml · عبوة فاخرة" or "8g"), and the ingredient
-links flattened to `{ name, note }`.
+`formatVariantLabel`, so "100ml" or "8g"), and the ingredient links flattened
+to `{ name, note }`.
 
 Wrapped in **React's `cache()`** so `generateMetadata` and the page component
 share one query per request. Prisma calls are not request-deduplicated the way

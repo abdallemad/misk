@@ -3,7 +3,6 @@ import type { ProductType } from "@prisma/client"
 
 import {
   BOTTLE_SIZES,
-  BOTTLE_STYLES,
   OIL_WEIGHTS,
   PRODUCT_TYPES,
   VARIANT_AXES,
@@ -32,10 +31,9 @@ import { SLUG_PATTERN, SLUG_RULE_MESSAGE } from "@/utils/slug"
  * This schema is bigger than `category.schema.ts` because a product is not a
  * flat record. It carries a gallery, a list of ingredients, and a **collection
  * of variants whose legal shape depends on the product's own type** — an
- * alcohol-based perfume is sold by bottle size and bottle style, a raw oil by
- * weight and nothing else. That last rule is not expressible field-by-field,
- * so it lives in the `superRefine` below and is re-checked in
- * `product.service.ts`.
+ * alcohol-based perfume is sold by bottle size, a raw oil by weight and
+ * nothing else. That last rule is not expressible field-by-field, so it lives
+ * in the `superRefine` below and is re-checked in `product.service.ts`.
  *
  * Messages are Arabic because they are rendered verbatim under the field.
  */
@@ -115,16 +113,15 @@ const galleryImage = z
 /**
  * One purchasable option, before the type rule is applied.
  *
- * All three discriminator columns are nullable here even though a valid
- * variant always fills exactly one *set* of them. Which set is legal is a
- * fact about the product, not about the row, so this cannot be a
- * discriminated union at this level — see `enforceVariantShape` below.
+ * Both discriminator columns are nullable here even though a valid variant
+ * always fills exactly one of them. Which one is legal is a fact about the
+ * product, not about the row, so this cannot be a discriminated union at this
+ * level — see `enforceVariantShape` below.
  */
 const variantSchema = z.object({
   key: z.string().min(1),
   id: z.string().nullable(),
   bottleSize: z.enum(BOTTLE_SIZES).nullable(),
-  bottleStyle: z.enum(BOTTLE_STYLES).nullable(),
   oilWeight: z.enum(OIL_WEIGHTS).nullable(),
   oilGrade: z
     .string()
@@ -187,7 +184,6 @@ export type ProductIngredientInput = z.infer<typeof ingredientSchema>
 export function variantCombination(variant: ProductVariantInput): string {
   return [
     variant.bottleSize ?? "",
-    variant.bottleStyle ?? "",
     variant.oilWeight ?? "",
     variant.oilGrade?.trim().toLowerCase() ?? "",
   ].join("|")
@@ -306,11 +302,10 @@ function enforceVariantShape(
 
   const missingMessage = {
     bottleSize: "اختر الحجم.",
-    bottleStyle: "اختر نوع العبوة.",
     oilWeight: "اختر الوزن.",
   } as const
 
-  for (const axis of ["bottleSize", "bottleStyle", "oilWeight"] as const) {
+  for (const axis of ["bottleSize", "oilWeight"] as const) {
     const isRequired = required.includes(axis)
     const value = variant[axis]
 
@@ -357,7 +352,6 @@ export type ProductField = (typeof PRODUCT_FIELDS)[number]
 
 export type VariantField =
   | "bottleSize"
-  | "bottleStyle"
   | "oilWeight"
   | "oilGrade"
   | "price"
@@ -450,7 +444,6 @@ export function parseProductForm(
     key,
     id: orNull(text(variantFieldName(key, "id"))),
     bottleSize: orNull(text(variantFieldName(key, "bottleSize"))),
-    bottleStyle: orNull(text(variantFieldName(key, "bottleStyle"))),
     oilWeight: orNull(text(variantFieldName(key, "oilWeight"))),
     oilGrade: orNull(text(variantFieldName(key, "oilGrade"))),
     price: text(variantFieldName(key, "price")),

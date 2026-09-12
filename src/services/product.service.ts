@@ -33,9 +33,9 @@ import { resolveIngredientIds } from "@/services/ingredient.service"
  * be allowed to disagree about:
  *
  *   1. **A variant's shape follows its product's type.** An `ALCOHOL_BASED`
- *      perfume is sold by bottle size × bottle style; a `RAW_OIL` by weight
- *      alone. `schemas/product.schema.ts` checks this too, so the admin sees
- *      it under the field — but the schema is skippable by a direct POST and
+ *      perfume is sold by bottle size; a `RAW_OIL` by weight alone.
+ *      `schemas/product.schema.ts` checks this too, so the admin sees it
+ *      under the field — but the schema is skippable by a direct POST and
  *      this is not.
  *   2. **No two variants of one perfume may be the same thing.** The
  *      `uniqueVariantCombination` index cannot enforce it (see below), so
@@ -85,7 +85,6 @@ export type ProductRow = {
 export type ProductVariantRow = {
   id: string
   bottleSize: ProductVariantInput["bottleSize"]
-  bottleStyle: ProductVariantInput["bottleStyle"]
   oilWeight: ProductVariantInput["oilWeight"]
   oilGrade: string | null
   sku: string
@@ -271,7 +270,6 @@ export async function getProduct(id: string): Promise<ProductDetail | null> {
         // them smallest-first, which it does deliberately.
         orderBy: [
           { bottleSize: "asc" },
-          { bottleStyle: "asc" },
           { oilWeight: "asc" },
           { oilGrade: "asc" },
         ],
@@ -302,7 +300,6 @@ export async function getProduct(id: string): Promise<ProductDetail | null> {
     variants: product.variants.map((variant) => ({
       id: variant.id,
       bottleSize: variant.bottleSize,
-      bottleStyle: variant.bottleStyle,
       oilWeight: variant.oilWeight,
       oilGrade: variant.oilGrade,
       sku: variant.sku,
@@ -624,7 +621,7 @@ export async function deleteProduct(id: string): Promise<ProductDeleteResult> {
  * is the layer that a caller bypassing the action — a future seed script, a
  * background job, a second action written in a hurry — still has to go
  * through. Duplicated validation is the cheapest thing in this file; a
- * raw-oil variant with a bottle style is not.
+ * raw-oil variant with a bottle size is not.
  *
  * The keys it returns are the form's own field names, so the result drops
  * straight into `<Form errors>` beside anything the schema produced.
@@ -639,7 +636,7 @@ function checkVariants(input: ProductFormInput): ProductMutationResult | null {
   }
 
   for (const variant of input.variants) {
-    for (const axis of ["bottleSize", "bottleStyle", "oilWeight"] as const) {
+    for (const axis of ["bottleSize", "oilWeight"] as const) {
       const isRequired = required.includes(axis)
 
       if (isRequired && variant[axis] === null) {
@@ -677,7 +674,6 @@ function variantColumns(type: ProductType, variant: ProductVariantInput) {
 
   return {
     bottleSize: alcohol ? variant.bottleSize : null,
-    bottleStyle: alcohol ? variant.bottleStyle : null,
     oilWeight: alcohol ? null : variant.oilWeight,
     oilGrade: variant.oilGrade,
     // A string reaches `Decimal(10,2)` unrounded; a float would not.
@@ -694,11 +690,11 @@ function variantColumns(type: ProductType, variant: ProductVariantInput) {
 /**
  * Build a stock code for each *new* variant.
  *
- * Generated rather than typed, because the admin form already asks for six
+ * Generated rather than typed, because the admin form already asks for five
  * things per row and a hand-typed code is one more thing to get wrong in a
  * way the database reports as `Unique constraint failed on sku`. The shape is
- * readable on a label — `MISK-ROSE-100ML-LUX`, `MISK-ROSE-8G` — and derived
- * from the values that make the variant what it is.
+ * readable on a label — `MISK-ROSE-100ML`, `MISK-ROSE-8G` — and derived from
+ * the values that make the variant what it is.
  *
  * Two properties are load-bearing:
  *
@@ -757,7 +753,6 @@ function buildSku(
     if (variant.oilWeight) parts.push(OIL_WEIGHT_LABEL[variant.oilWeight].toUpperCase())
   } else {
     if (variant.bottleSize) parts.push(BOTTLE_SIZE_LABEL[variant.bottleSize].toUpperCase())
-    if (variant.bottleStyle) parts.push(variant.bottleStyle === "LUXURY" ? "LUX" : "REG")
   }
 
   if (variant.oilGrade) parts.push(gradeCode(variant.oilGrade))

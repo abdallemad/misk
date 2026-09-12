@@ -163,9 +163,9 @@ written to design the catalog's data model, not to be read by a shopper.
 Arabic brand copy: §2 (in-house manufacturing) becomes the intro and an
 expanded three-point `Craft` (the same three claims `/` teases, written with
 more depth here); §4 (the two product formats) becomes a two-card "خطّان
-لكل ذوق" comparison — alcohol-based (30/50/100ml, luxury/regular bottle)
-side by side with raw oil / «دهن» (5/8/12g, no bottle style, sold by
-weight); the three categories get a short paragraph and a link to each
+لكل ذوق" comparison — alcohol-based (30/50/100ml) side by side with raw oil /
+«دهن» (5/8/12g, sold by weight); the three categories get a short paragraph
+and a link to each
 `/store?category=` filter, deliberately **not** a second copy of `/`'s own
 category cards (the same picker appearing identically on two pages a
 shopper might visit back to back would just be repetition, not

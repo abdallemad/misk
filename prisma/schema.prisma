@@ -6,12 +6,14 @@
 // Design notes:
 // - Each perfume is a parent Product with one or many Variants
 //   (variant-based selling rather than fixed SKUs).
-// - Two product types exist: ALCOHOL (sold by bottle size + style)
-//   and RAW_OIL / "Duhn" (sold by weight, no bottle style).
+// - Two product types exist: ALCOHOL (sold by bottle size only)
+//   and RAW_OIL / "Duhn" (sold by weight).
 //   Rather than splitting into two tables, Variant carries nullable
 //   fields for each type and a check is enforced at the app layer
 //   (see comment above Variant) — this keeps "one perfume, many
 //   purchasable options" on a single product page, per section 5.
+//   Bottle style (luxury/regular) was dropped after section 4.1 —
+//   see docs/products-feature.md, "The bottle-style axis was removed".
 // - Ingredients are modeled as their own table so the same raw
 //   material (e.g. "Amber Oud oil, Grade A") can be reused/reported
 //   on across many products, and so the admin can update
@@ -35,12 +37,6 @@ datasource db {
 enum ProductType {
   ALCOHOL_BASED
   RAW_OIL
-}
-
-/// Packaging tier — alcohol-based line only — section 4.1
-enum BottleStyle {
-  LUXURY
-  REGULAR
 }
 
 /// Bottle size in ml — alcohol-based line only — section 4.1
@@ -167,14 +163,14 @@ model ProductIngredient {
 ///
 /// Population rules (enforced in application/service layer, since
 /// Prisma has no native CHECK-constraint DSL):
-///   - product.productType == ALCOHOL_BASED  ->  bottleSize + bottleStyle
-///     are required; oilWeight must be null.
+///   - product.productType == ALCOHOL_BASED  ->  bottleSize is required;
+///     oilWeight must be null.
 ///   - product.productType == RAW_OIL        ->  oilWeight is required;
-///     bottleSize + bottleStyle must be null.
+///     bottleSize must be null.
 ///
 /// oilGrade is free-text on every variant since price varies by
-/// (size/weight × bottle style × oil grade) per section 4.1, and
-/// grades/batches change over time (section 7, point 4).
+/// (size/weight × oil grade), and grades/batches change over time
+/// (section 7, point 4).
 model ProductVariant {
   id          String       @id @default(cuid())
 
@@ -183,7 +179,6 @@ model ProductVariant {
 
   // Alcohol-based fields
   bottleSize  BottleSize?
-  bottleStyle BottleStyle?
 
   // Raw oil fields
   oilWeight   OilWeight?
@@ -202,7 +197,7 @@ model ProductVariant {
   orderItems  OrderItem[]
 
   @@index([productId])
-  @@unique([productId, bottleSize, bottleStyle, oilWeight, oilGrade], name: "uniqueVariantCombination")
+  @@unique([productId, bottleSize, oilWeight, oilGrade], name: "uniqueVariantCombination")
 }
 
 // ------------------------------------------------------------

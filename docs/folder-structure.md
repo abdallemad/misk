@@ -20,7 +20,7 @@
 - [`admin-dashboard.md`](./admin-dashboard.md) — the `/admin` console and its reusable components
 - [`admin-access-control.md`](./admin-access-control.md) — how `/admin` is locked down
 - [`categories-feature.md`](./categories-feature.md) — admin CRUD for Youth / Women / Men
-- [`products-feature.md`](./products-feature.md) — **built** — admin CRUD for the sellable entity: gallery upload and the inline variant-collection editor (size+style rows vs. weight rows, depending on product type). The ingredients editor is deliberately not in it yet; that document says why
+- [`products-feature.md`](./products-feature.md) — **built** — admin CRUD for the sellable entity: gallery upload and the inline variant-collection editor (size rows vs. weight rows, depending on product type). The ingredients editor is deliberately not in it yet; that document says why
 - [`orders-feature.md`](./orders-feature.md) — **built** — admin read-first: the orders list, one order's lines + shipping-address snapshot, and a status control. Orders are created by checkout, not the console
 - [`customers-feature.md`](./customers-feature.md) — **built** — admin read-first: accounts mirrored from Clerk and their order history, with one write — promoting/demoting a customer's role (Clerk-first, mirror follows)
 - [`database-seeding.md`](./database-seeding.md) — **built** — `npm run seed-dev`: an idempotent, deterministic mock catalog + customers + orders (with shipping addresses) for development
@@ -247,7 +247,7 @@ Examples:
 - Card
 - Dialog
 - Badge
-- Select (used for size / weight / bottle style pickers)
+- Select (used for size / weight pickers)
 - Form / Field / FieldError — the error-map trio every admin form is built
   from; see [`admin-dashboard.md`](./admin-dashboard.md)
 - Dropdown Menu — Base UI's click-triggered `Menu`, for an action list
@@ -326,9 +326,8 @@ panel `CatalogFilters` (category / product type / size), the product detail
 building blocks (`ProductGallery`, `ProductInfo`, `IngredientsList`), and the
 `VariantSelector` — the one component that branches by `product.type`:
 
-- `ALCOHOL_BASED` → renders **Size** (30ml / 50ml / 100ml) × **Bottle Style**
-  (Luxury / Regular)
-- `RAW_OIL` → renders **Weight** (5g / 8g / 12g) only, no bottle style
+- `ALCOHOL_BASED` → renders **Size** (30ml / 50ml / 100ml)
+- `RAW_OIL` → renders **Weight** (5g / 8g / 12g) only
 
 `search/` holds `SearchView` and `ProductResultCard`, reusing `ProductCard`
 so search results and the catalog look identical.
@@ -384,8 +383,8 @@ and on a full page.
 
 `product-form.tsx` is the one form with branching fields: selecting product
 type (`ALCOHOL_BASED` vs `RAW_OIL`) swaps the variant rows the inline editor
-renders — size + bottle style rows, or weight rows — before the product is
-even saved. See [`products-feature.md`](./products-feature.md).
+renders — size rows, or weight rows — before the product is even saved. See
+[`products-feature.md`](./products-feature.md).
 
 > **Both built forms live under `components/admin/<feature>/`, not here.**
 > They are not presentational: each owns a `useActionState` bound to its own
@@ -569,10 +568,10 @@ webhook, so its own stock decrement lives in `order.service.createOrder`
 instead — see [`checkout-orders-feature.md`](./checkout-orders-feature.md).
 
 `product.service.ts` owns the rule that keeps the catalog consistent: an
-`ALCOHOL_BASED` product's variants must carry `bottleSize` + `bottleStyle` and
-no `oilWeight`; a `RAW_OIL` product's variants must carry `oilWeight` and no
-`bottleSize`/`bottleStyle`. This is enforced in the service, not just the
-form, so it can never be bypassed by a direct Server Action call. See
+`ALCOHOL_BASED` product's variants must carry `bottleSize` and no
+`oilWeight`; a `RAW_OIL` product's variants must carry `oilWeight` and no
+`bottleSize`. This is enforced in the service, not just the form, so it can
+never be bypassed by a direct Server Action call. See
 [`products-feature.md`](./products-feature.md) for the third place it is also
 enforced — the database — and why that one is not enough on its own.
 
@@ -753,9 +752,8 @@ Core models (see [`erd.md`](./erd.md) for the full diagram):
 - `Product` — name, slug, description, ingredients, images[], productType
   (`ALCOHOL_BASED` | `RAW_OIL`), categoryId, isActive
 - `ProductVariant` — productId, bottleSize (`ML_30` | `ML_50` | `ML_100`,
-  nullable), bottleStyle (`LUXURY` | `REGULAR`, nullable), oilWeight (`G_5` |
-  `G_8` | `G_12`, nullable), oilGrade, sku, price (`Decimal(10,2)`), stock,
-  isActive
+  nullable), oilWeight (`G_5` | `G_8` | `G_12`, nullable), oilGrade, sku,
+  price (`Decimal(10,2)`), stock, isActive
 - `Cart` / `CartItem` — **still not built**, checkout included. The cart is a
   signed `httpOnly` cookie instead (`{ variantId, quantity }` per line) —
   `checkout-orders-feature.md`'s `createOrder` reads it and re-derives price
@@ -806,7 +804,7 @@ Examples:
 - Format Currency
 - Format Date
 - Slug Generator
-- Variant Label Formatter (e.g. `"100ml · Luxury"` or `"8g"`)
+- Variant Label Formatter (e.g. `"100ml"` or `"8g"`)
 - Pagination Helpers
 - String Utilities
 
@@ -861,7 +859,7 @@ Also belongs here:
 
 - Query Keys
 - Product Types (`ALCOHOL_BASED`, `RAW_OIL`) — built, in `catalog.ts`
-- Bottle Sizes / Bottle Styles / Oil Weights — built, in `catalog.ts`
+- Bottle Sizes / Oil Weights — built, in `catalog.ts`
 - Order statuses — built, `ORDER_STATUSES` in `design-system.ts`
 - Roles
 - Permissions
@@ -990,7 +988,7 @@ UI
 Workflow:
 
 ```text
-Variant Selector (size+style, or weight)
+Variant Selector (size, or weight)
 
 ↓
 
