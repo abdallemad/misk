@@ -247,7 +247,12 @@ Examples:
 - Card
 - Dialog
 - Badge
-- Select (used for size / weight pickers)
+- Select (the admin variant editor's size / weight pickers, the checkout
+  governorate dropdown, `/store`'s type + sort filters)
+- Toggle Group — `toggle-group.tsx`, Base UI's `ToggleGroup` (single-select,
+  `multiple` off) over `toggle.tsx`. What `/store/[slug]`'s buy box now uses
+  to pick a size or weight — see [`store-feature.md`](./store-feature.md),
+  "`AddToCartForm`'s buy box picks with buttons, not a dropdown"
 - Form / Field / FieldError — the error-map trio every admin form is built
   from; see [`admin-dashboard.md`](./admin-dashboard.md)
 - Dropdown Menu — Base UI's click-triggered `Menu`, for an action list
@@ -308,8 +313,8 @@ import { useListNavigation } from "@/components/shared/use-list-navigation"  // 
 
 **Empty — the built cart's components live in `components/store/` instead.**
 This folder sketched `AddToCartButton`, `CartView`, `CartLineItem` before the
-feature existed. The picker turned out to be `AddToCartForm`'s `<select>`
-(one control does what a size-vs-weight branching picker was going to), and
+feature existed. The picker turned out to be `AddToCartForm`'s toggle-button
+row (one control does what a size-vs-weight branching picker was going to), and
 `CartView`/`CartLineItem` became `cart-content.tsx` / `cart-line-item.tsx` —
 kept beside the rest of the storefront rather than split into a same-purpose
 sibling folder, since `/cart` is one more storefront page, not a separate
@@ -1015,7 +1020,7 @@ Database
 > path, not the `/store` one that exists today.** The real Add to Cart
 > (`docs/cart-feature.md`) differs in three ways this document's own rules
 > already anticipated: the route is `app/store/[slug]/page.tsx`, not
-> `app/(shop)/shop/…`; there is no `variant-selector.tsx` — a `<select>`
+> `app/(shop)/shop/…`; there is no `variant-selector.tsx` — a `ToggleGroup`
 > inside `AddToCartForm` does the picking, because a perfume's options turned
 > out to be one control, not a component; and the chain ends at a cookie via
 > `lib/cart.ts`, not at `Prisma` — there is no `Cart` table yet, and

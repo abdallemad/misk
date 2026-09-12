@@ -1,6 +1,6 @@
 # Cart Feature
 
-`/cart`, and Add to Cart from the product page's variant `<select>` and from
+`/cart`, and Add to Cart from the product page's variant picker and from
 every catalogue card. This document covers the cart only; placing an order —
 [`checkout-orders-feature.md`](./checkout-orders-feature.md) — was the next
 round and reads the cart this feature builds.
@@ -94,7 +94,7 @@ in the cart."
 
 ```text
   components/store/
-   ├── add-to-cart-form.tsx    Client — the product page's <select> + stepper
+   ├── add-to-cart-form.tsx    Client — the product page's toggle buttons + stepper
    ├── store-card-actions.tsx  Client — the catalogue card's quick-add
    ├── cart-content.tsx        Server — /cart's body: lines + summary + COD
    ├── cart-line-item.tsx      Client — one row: stepper, remove
@@ -151,7 +151,7 @@ disabled:
 | --- | --- | --- | --- |
 | «أضف إلى السلة» | both | live | Calls `addToCartAction`; the cart is what this feature builds |
 | «اشترِ الآن» | `AddToCartForm` | **live** | Adds the selected variant + quantity (the identical `addToCartAction` call) and, on success, pushes to `/checkout` — see below |
-| «اشترِ الآن» | `StoreCardActions` | **disabled, unconditionally** | The card has no `<select>` — quick-adding `defaultVariantId` and jumping straight to `/checkout` would skip the one screen where a shopper can still change their mind about size. `AddToCartForm` doesn't have this problem: a shopper who presses its «اشترِ الآن» has already picked a size from the `<select>` right above it |
+| «اشترِ الآن» | `StoreCardActions` | **disabled, unconditionally** | The card has no picker — quick-adding `defaultVariantId` and jumping straight to `/checkout` would skip the one screen where a shopper can still change their mind about size. `AddToCartForm` doesn't have this problem: a shopper who presses its «اشترِ الآن» has already picked a size from the buttons right above it |
 
 **Independent `pending` flags, not a shared one — on both forms.**
 `disabled` used to be a literal `true` on `AddToCartForm`'s «اشترِ الآن»
@@ -174,8 +174,8 @@ still nothing to wire it to.
 product's variants by price so the first is the default) — one unit at a
 time. `null` when nothing on the card is in stock, which disables the button;
 there is no fallback to an out-of-stock variant. A shopper who wants a
-*different* size opens the product page, where `AddToCartForm`'s `<select>`
-is the full picker — the card genuinely cannot do more than quick-add the
+*different* size opens the product page, where `AddToCartForm`'s buttons are
+the full picker — the card genuinely cannot do more than quick-add the
 obvious option, so it does not pretend to.
 
 ---
@@ -304,7 +304,7 @@ next step" than a client handler would have been.
 | `src/components/store/cart-content.tsx` | Server — the page body: lines, notice, summary, disabled COD button |
 | `…/cart-line-item.tsx` | Client — one row: image, stepper, remove |
 | `…/clear-cart-button.tsx` | Client — empty the cart |
-| `…/add-to-cart-form.tsx` | Client — the product page's variant `<select>` + stepper + the two buttons |
+| `…/add-to-cart-form.tsx` | Client — the product page's variant toggle buttons + stepper + the two buy buttons |
 | `…/store-card-actions.tsx` | Client — the catalogue card's quick-add |
 | `src/actions/cart/add-to-cart.ts` | `"use server"` — validate, delegate, revalidate `/cart` + the layout |
 | `…/update-cart-item.ts` | Same shape, for the stepper |
@@ -346,10 +346,10 @@ past one browser's cookies — see the `Cart` table discussion above.
 
 **Wiring up the catalogue card's «اشترِ الآن».** `AddToCartForm`'s copy is
 done (see above). The card's is a different, and harder, question: it has no
-`<select>`, so quick-adding `defaultVariantId` and jumping straight into
+picker, so quick-adding `defaultVariantId` and jumping straight into
 `/checkout` would skip the one screen where a shopper can still change their
-mind about size — `/cart` and the product page's `<select>` exist to give
-them that. Wiring it up means deciding what it should actually *do* first
+mind about size — `/cart` and the product page's buttons exist to give them
+that. Wiring it up means deciding what it should actually *do* first
 (jump to `/checkout` with just that one line and accept the size is fixed?
 open the picker inline instead of navigating?), not just copying
 `AddToCartForm`'s answer. `StoreCardActions` already isolates its disabled
