@@ -237,195 +237,208 @@ export function ProductForm({
           create rather than update. */}
       <input type="hidden" name="id" value={product?.id ?? ""} />
 
-      <SectionCard
-        title="بيانات العطر"
-        description="الاسم والوصف كما يقرأهما الزائر على صفحة المنتج."
-      >
-        <FieldGroup className="gap-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field name="name">
-              <FieldLabel htmlFor="product-name">الاسم</FieldLabel>
-              <Input
-                id="product-name"
-                name="name"
-                defaultValue={product?.name ?? ""}
-                maxLength={NAME_MAX}
-                placeholder="مسك الورد"
-                autoComplete="off"
+      {/* `display: contents` so the fieldset adds no box of its own — the
+          section cards stay direct flex children of `<Form>`, exactly as
+          they were before this wrapper existed. Disabling here is a native
+          HTML mechanism: it reaches every real `<input>`, `<select>`,
+          `<textarea>` and `<button>` underneath, including the ones inside
+          Base UI's `Select`/`Switch`, so the whole form — not just the
+          gallery and the row editors — is inert while a save is in flight.
+          Before this, `name`/`slug`/`description`/`categoryId`/`productType`
+          /`isActive` stayed editable during the request, which is what made
+          a save in progress look indistinguishable from an idle form. */}
+      <fieldset disabled={pending} className="contents">
+        <SectionCard
+          title="بيانات العطر"
+          description="الاسم والوصف كما يقرأهما الزائر على صفحة المنتج."
+        >
+          <FieldGroup className="gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field name="name">
+                <FieldLabel htmlFor="product-name">الاسم</FieldLabel>
+                <Input
+                  id="product-name"
+                  name="name"
+                  defaultValue={product?.name ?? ""}
+                  maxLength={NAME_MAX}
+                  placeholder="مسك الورد"
+                  autoComplete="off"
+                />
+                <FieldError />
+              </Field>
+
+              <Field name="slug">
+                <FieldLabel htmlFor="product-slug">المعرّف (الرابط)</FieldLabel>
+                <Input
+                  id="product-slug"
+                  name="slug"
+                  defaultValue={product?.slug ?? ""}
+                  maxLength={SLUG_MAX}
+                  placeholder="misk-rose"
+                  autoComplete="off"
+                  spellCheck={false}
+                  dir="ltr"
+                  className="font-mono text-start"
+                />
+                <FieldDescription>
+                  يظهر في رابط الصفحة:{" "}
+                  <code className="font-mono text-xs" dir="ltr">
+                    /shop/…/{product?.slug || "misk-rose"}
+                  </code>
+                  {isEdit ? " — تغييره يكسر الروابط المنشورة." : null}
+                </FieldDescription>
+                <FieldError />
+              </Field>
+            </div>
+
+            <Field name="description">
+              <FieldLabel htmlFor="product-description">الوصف</FieldLabel>
+              <Textarea
+                id="product-description"
+                name="description"
+                defaultValue={product?.description ?? ""}
+                maxLength={DESCRIPTION_MAX}
+                rows={5}
+                placeholder="ورد طائفي وعنبر، بقاعدة مسكية دافئة تدوم طوال اليوم."
               />
+              <FieldDescription>
+                النص الذي يقرأه الزائر على صفحة المنتج — عائلة الروائح، الثبات،
+                ومناسبة الاستخدام.
+              </FieldDescription>
               <FieldError />
             </Field>
 
-            <Field name="slug">
-              <FieldLabel htmlFor="product-slug">المعرّف (الرابط)</FieldLabel>
-              <Input
-                id="product-slug"
-                name="slug"
-                defaultValue={product?.slug ?? ""}
-                maxLength={SLUG_MAX}
-                placeholder="misk-rose"
-                autoComplete="off"
-                spellCheck={false}
-                dir="ltr"
-                className="font-mono text-start"
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field name="categoryId">
+                <FieldLabel htmlFor="product-category">الفئة</FieldLabel>
+                <Select
+                  name="categoryId"
+                  items={categoryItems(categories)}
+                  defaultValue={product?.categoryId ?? null}
+                >
+                  <SelectTrigger id="product-category" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                        {category.isActive ? null : (
+                          <span className="text-xs text-muted-foreground">
+                            (مخفية)
+                          </span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError />
+              </Field>
+
+              <Field name="productType">
+                <FieldLabel htmlFor="product-type">النوع</FieldLabel>
+                <Select
+                  name="productType"
+                  items={typeItems}
+                  value={productType}
+                  onValueChange={(value) => setProductType(value as ProductType)}
+                >
+                  <SelectTrigger id="product-type" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRODUCT_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {PRODUCT_TYPE_LABEL[type]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  {PRODUCT_TYPE_HINT[productType]}
+                </FieldDescription>
+                <FieldError />
+              </Field>
+            </div>
+
+            <Field orientation="horizontal">
+              <FieldContent>
+                <FieldTitle>
+                  <FieldLabel htmlFor="product-active">معروض في المتجر</FieldLabel>
+                </FieldTitle>
+                <FieldDescription>
+                  أوقفه لإخفاء العطر عن الزوار دون حذفه.
+                </FieldDescription>
+              </FieldContent>
+              <Switch
+                id="product-active"
+                name="isActive"
+                defaultChecked={product?.isActive ?? true}
               />
-              <FieldDescription>
-                يظهر في رابط الصفحة:{" "}
-                <code className="font-mono text-xs" dir="ltr">
-                  /shop/…/{product?.slug || "misk-rose"}
-                </code>
-                {isEdit ? " — تغييره يكسر الروابط المنشورة." : null}
-              </FieldDescription>
-              <FieldError />
             </Field>
-          </div>
+          </FieldGroup>
+        </SectionCard>
 
-          <Field name="description">
-            <FieldLabel htmlFor="product-description">الوصف</FieldLabel>
-            <Textarea
-              id="product-description"
-              name="description"
-              defaultValue={product?.description ?? ""}
-              maxLength={DESCRIPTION_MAX}
-              rows={5}
-              placeholder="ورد طائفي وعنبر، بقاعدة مسكية دافئة تدوم طوال اليوم."
-            />
-            <FieldDescription>
-              النص الذي يقرأه الزائر على صفحة المنتج — عائلة الروائح، الثبات،
-              ومناسبة الاستخدام.
-            </FieldDescription>
-            <FieldError />
-          </Field>
+        <SectionCard
+          title="الصور"
+          description="أول صورة هي الغلاف — هي التي تظهر في قوائم المتجر والسلة."
+        >
+          <ProductGalleryField
+            images={product?.images ?? []}
+            onChanged={() => dismissError("images")}
+            disabled={pending}
+          />
+        </SectionCard>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field name="categoryId">
-              <FieldLabel htmlFor="product-category">الفئة</FieldLabel>
-              <Select
-                name="categoryId"
-                items={categoryItems(categories)}
-                defaultValue={product?.categoryId ?? null}
-              >
-                <SelectTrigger id="product-category" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                      {category.isActive ? null : (
-                        <span className="text-xs text-muted-foreground">
-                          (مخفية)
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldError />
-            </Field>
-
-            <Field name="productType">
-              <FieldLabel htmlFor="product-type">النوع</FieldLabel>
-              <Select
-                name="productType"
-                items={typeItems}
-                value={productType}
-                onValueChange={(value) => setProductType(value as ProductType)}
-              >
-                <SelectTrigger id="product-type" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRODUCT_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {PRODUCT_TYPE_LABEL[type]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldDescription>
-                {PRODUCT_TYPE_HINT[productType]}
-              </FieldDescription>
-              <FieldError />
-            </Field>
-          </div>
-
-          <Field orientation="horizontal">
-            <FieldContent>
-              <FieldTitle>
-                <FieldLabel htmlFor="product-active">معروض في المتجر</FieldLabel>
-              </FieldTitle>
-              <FieldDescription>
-                أوقفه لإخفاء العطر عن الزوار دون حذفه.
-              </FieldDescription>
-            </FieldContent>
-            <Switch
-              id="product-active"
-              name="isActive"
-              defaultChecked={product?.isActive ?? true}
-            />
-          </Field>
-        </FieldGroup>
-      </SectionCard>
-
-      <SectionCard
-        title="الصور"
-        description="أول صورة هي الغلاف — هي التي تظهر في قوائم المتجر والسلة."
-      >
-        <ProductGalleryField
-          images={product?.images ?? []}
-          onChanged={() => dismissError("images")}
-          disabled={pending}
-        />
-      </SectionCard>
-
-      <SectionCard
-        title="الأحجام والأسعار"
-        description={
-          productType === "ALCOHOL_BASED"
-            ? "كل حجم هو خيار شراء مستقل بسعره ومخزونه."
-            : "كل وزن هو خيار شراء مستقل بسعره ومخزونه."
-        }
-      >
-        <ProductVariantsField
-          productType={productType}
-          rows={variantRows}
-          onAdd={addVariantRow}
-          onRemove={(key) =>
-            setVariantRows((current) =>
-              current.filter((row) => row.key !== key)
-            )
+        <SectionCard
+          title="الأحجام والأسعار"
+          description={
+            productType === "ALCOHOL_BASED"
+              ? "كل حجم هو خيار شراء مستقل بسعره ومخزونه."
+              : "كل وزن هو خيار شراء مستقل بسعره ومخزونه."
           }
-          disabled={pending}
-        />
-      </SectionCard>
+        >
+          <ProductVariantsField
+            productType={productType}
+            rows={variantRows}
+            onAdd={addVariantRow}
+            onRemove={(key) =>
+              setVariantRows((current) =>
+                current.filter((row) => row.key !== key)
+              )
+            }
+            disabled={pending}
+          />
+        </SectionCard>
 
-      <SectionCard
-        title="المكوّنات"
-        description="ما في العطر فعلًا — الزيوت ودرجاتها والكحول. اختياري، ويظهر في قسم الجودة على صفحة المنتج."
-      >
-        <ProductIngredientsField
-          rows={ingredientRows}
-          options={ingredients}
-          onAdd={addIngredientRow}
-          onRemove={(key) =>
-            setIngredientRows((current) =>
-              current.filter((row) => row.key !== key)
-            )
-          }
-          disabled={pending}
-        />
-      </SectionCard>
+        <SectionCard
+          title="المكوّنات"
+          description="ما في العطر فعلًا — الزيوت ودرجاتها والكحول. اختياري، ويظهر في قسم الجودة على صفحة المنتج."
+        >
+          <ProductIngredientsField
+            rows={ingredientRows}
+            options={ingredients}
+            onAdd={addIngredientRow}
+            onRemove={(key) =>
+              setIngredientRows((current) =>
+                current.filter((row) => row.key !== key)
+              )
+            }
+            disabled={pending}
+          />
+        </SectionCard>
+      </fieldset>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         {/* An anchor, so neither `type` nor `disabled` would do anything on
-            it — and leaving during a save is what "cancel" means anyway. */}
+            it — and leaving during a save is what "cancel" means anyway.
+            Deliberately outside the fieldset above for the same reason. */}
         <Button variant="outline" render={<Link href={ROUTES.adminProducts} />}>
           إلغاء
         </Button>
         <Button type="submit" variant="gold" disabled={pending}>
           {pending ? <Spinner /> : null}
-          {isEdit ? "حفظ التعديلات" : "إضافة العطر"}
+          {pending ? "جارٍ الحفظ…" : isEdit ? "حفظ التعديلات" : "إضافة العطر"}
         </Button>
       </div>
     </Form>

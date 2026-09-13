@@ -593,6 +593,89 @@ seen; a second submit from the same form would send them up as new rows again
 and hit the duplicate check. Leaving the page is what guarantees the next edit
 starts from the server's version.
 
+**This only ever runs from the `state.status === "success"` branch of the
+effect that watches `state`**, and that branch is only reachable once
+`saveProductAction` has returned — which is after `createProduct` /
+`updateProduct` has written the row and, for any new photo, after
+`storeGallery` has finished talking to Cloudinary. There is no earlier exit
+that clears the form or leaves the page. The gap this feature actually had was
+not a premature reset — it was that **nothing told the admin a save was
+running at all**, which is indistinguishable from "did my click do anything?"
+on a slow upload. See the next section.
+
+---
+
+## Feedback while a save is in flight
+
+Uploading and saving are the same request. `saveProductAction` is one
+Server Action; there is no separate "upload" step the browser can watch
+finish before the "save" step starts (see
+[`image-uploads.md`](./image-uploads.md)'s layer diagram — Cloudinary is
+called from *inside* `product.service.ts`, several layers below the form).
+So for however long that POST takes — longer with a full 4 MB × 8 gallery
+than with none — the only thing that used to change on screen was the submit
+button growing a small spinner. Every input stayed exactly as editable as it
+was at rest, and a newly picked photo sat in its tile looking finished. On a
+slow connection that reads as "nothing is happening", which is what an admin
+who has just added photos and clicked once describes as the form having
+"reset" — not because anything cleared, but because nothing confirmed it
+hadn't.
+
+### The whole form locks, not just the gallery and the row editors
+
+`product-gallery-field.tsx`, `product-variants-field.tsx` and
+`product-ingredients-field.tsx` already took a `disabled` prop wired to
+`pending`. The six plain fields above them — `name`, `slug`, `description`,
+`categoryId`, `productType`, `isActive` — did not, so an admin could keep
+typing in the name box while the request they had just fired was still
+uploading photos in the background. `product-form.tsx` now wraps every
+`<SectionCard>` in:
+
+```tsx
+<fieldset disabled={pending} className="contents">
+```
+
+`className="contents"` (`display: contents`) is what makes this free: the
+`<fieldset>` renders no box of its own, so the section cards stay direct flex
+children of `<Form>` exactly as they were, and none of the existing spacing
+or grid classes has to change. `disabled` on a `<fieldset>` is a native HTML
+mechanism, not a React prop — it reaches every real `<input>`, `<select>`,
+`<textarea>` and `<button>` underneath, which includes the ones Base UI's
+`Select` and `Switch` render internally. The `disabled={pending}` props
+already threaded into the gallery and the two row editors are left in place
+rather than relied on alone — belt and braces, and removing them would be a
+second change with no upside.
+
+The submit button and the "إلغاء" link stay **outside** the fieldset, on
+purpose and for opposite reasons: the button has its own `disabled={pending}`
+because a `<button>` is form-associated and fieldset-disabling would do the
+same thing anyway; the cancel link is an anchor, immune to `disabled`
+regardless of where it sits, and is meant to stay clickable while a save is
+running — leaving mid-save is what "cancel" already means.
+
+The button's label changes too, from a bare spinner next to unchanged text to
+"جارٍ الحفظ…" — so pressing it does not just disable it silently, it says
+what is happening.
+
+### The gallery says which files are actually mid-upload
+
+A freshly picked photo already rendered with a small "✕" instead of a trash
+icon (`pending` on `GalleryTile` — chosen but not yet on the server). That
+told the admin *which* tiles were new; it said nothing about *when* they were
+being sent. `product-gallery-field.tsx` now passes a second prop,
+`uploading={disabled}`, to every picked tile — `disabled` is this
+component's own name for "the save request is in flight", so a picked tile is
+"uploading" exactly during the window it is actually inside the
+`multipart/form-data` body Cloudinary is receiving. The tile renders a
+translucent overlay with a `<Spinner>` over the preview for that window, and
+a line under the strip reads "جارٍ رفع N صور إلى الخادم…" (or "الصورة"،
+singular) whenever there is at least one picked file and the form is
+disabled.
+
+Photos already on the row (`kept`) get no such overlay — they were uploaded
+on an earlier save and nothing re-uploads them on this one; only their
+position or removal, which are database writes, not Cloudinary calls.
+
 ---
 
 ## Access control

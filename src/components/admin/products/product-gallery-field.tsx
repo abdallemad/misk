@@ -19,6 +19,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import {
   IMAGE_ACCEPT_ATTR,
   IMAGE_FORMATS_LABEL,
@@ -247,6 +248,7 @@ export function ProductGalleryField({
                 blob
                 cover={kept.length === 0 && index === 0}
                 pending
+                uploading={disabled}
                 disabled={disabled}
                 onRemove={() => dropPicked(item.key)}
               />
@@ -254,6 +256,19 @@ export function ProductGalleryField({
           ))}
         </ul>
       )}
+
+      {/* `disabled` here means the save request is in flight — the moment
+          every picked file is actually being sent to Cloudinary from inside
+          the Server Action. Without this, the only sign that anything is
+          happening is the submit button's own spinner, and the gallery looks
+          exactly like it does at rest. */}
+      {disabled && picked.length > 0 ? (
+        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Spinner className="size-3.5" />
+          جارٍ رفع {picked.length > 1 ? `${picked.length} صور` : "الصورة"} إلى
+          الخادم…
+        </p>
+      ) : null}
 
       {removed.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 p-2">
@@ -311,6 +326,8 @@ type GalleryTileProps = {
   cover?: boolean
   /** Picked in the browser but not yet on the server. */
   pending?: boolean
+  /** The save request is in flight, actually sending this file to Cloudinary. */
+  uploading?: boolean
   disabled?: boolean
   onRemove: () => void
   onMoveStart?: () => void
@@ -322,6 +339,7 @@ function GalleryTile({
   blob,
   cover,
   pending,
+  uploading,
   disabled,
   onRemove,
   onMoveStart,
@@ -340,6 +358,13 @@ function GalleryTile({
       ) : (
         <Image src={src} alt="" fill sizes="96px" className="object-cover" />
       )}
+
+      {uploading ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/70">
+          <Spinner className="size-5" />
+          <span className="sr-only">جارٍ رفع الصورة</span>
+        </div>
+      ) : null}
 
       <Button
         type="button"

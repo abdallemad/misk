@@ -222,6 +222,16 @@ A seeded catalogue (`npm run seed-dev`) carries **no images** — every card on
 unchanged and is [`database-seeding.md`](./database-seeding.md)'s call, not a
 regression.
 
+### There is nothing to watch between "picked" and "saved"
+
+The upload has no request of its own to inspect in the Network tab — it
+happens from inside `saveProductAction`, so the only visible request is the
+one Server Action POST, and it does not resolve until every new file has
+already round-tripped to Cloudinary. What the product form shows for that
+whole window — a spinner over each picked tile, a "جارٍ رفع الصور…" line, the
+rest of the form locked — is covered in `products-feature.md`,
+["Feedback while a save is in flight"](./products-feature.md#feedback-while-a-save-is-in-flight).
+
 ---
 
 ## Extending this
