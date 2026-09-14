@@ -3,14 +3,17 @@
 import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
 import {
+  CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CloudUploadIcon,
   ImageIcon,
   Trash2Icon,
   UndoIcon,
   XIcon,
 } from "lucide-react"
 
+import { uploadProductImagesAction } from "@/actions/product/upload-product-images"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -54,25 +57,37 @@ type PickedFile = {
   preview: string
 }
 
+/** A picked file the "ارفع الصور" button already pushed to Cloudinary. */
+type UploadedFile = {
+  key: string
+  url: string
+}
+
 /**
  * The product gallery: what is already stored, what order it is in, and what
  * is being added.
  *
- * Three things are submitted, and they are deliberately not three
- * independent lists:
+ * Four things are submitted, and they are deliberately not four independent
+ * lists:
  *
- *   - `keepImage` — one hidden input per surviving photo, **in display
- *     order**. The service reads position from the index, so reordering and
- *     removing are the same edit. A separate `removeImage` list could
- *     contradict the order list; this cannot.
- *   - `images` — the file input itself, appended after the survivors.
+ *   - `keepImage` — one hidden input per surviving stored photo, **in
+ *     display order**. The service reads position from the index, so
+ *     reordering and removing are the same edit. A separate `removeImage`
+ *     list could contradict the order list; this cannot.
+ *   - `newImageUrl` — one hidden input per photo the "ارفع الصور" button
+ *     already uploaded this session, also in display order. No DB row exists
+ *     for these yet — that only happens when the whole form is saved — so
+ *     they cannot be `keepImage` entries, but they are just as "already on
+ *     Cloudinary" as a kept photo, and the service treats them that way.
+ *   - `images` — the file input itself, holding whatever is still only
+ *     picked. Appended after the two lists above.
  *   - nothing at all for a removed photo. Its absence *is* the removal.
  *
  * The first image is the cover — it is what the catalogue grid and the cart
  * line show — so it is labelled rather than left for the admin to infer from
  * position.
  *
- * See docs/products-feature.md.
+ * See docs/products-feature.md and docs/image-uploads.md.
  */
 export function ProductGalleryField({
   images,
@@ -84,8 +99,13 @@ export function ProductGalleryField({
   const [kept, setKept] = useState<ProductImageRow[]>(images)
   const [removed, setRemoved] = useState<ProductImageRow[]>([])
   const [picked, setPicked] = useState<PickedFile[]>([])
+  /** Picked files the "ارفع الصور" button has already pushed to Cloudinary. */
+  const [uploaded, setUploaded] = useState<UploadedFile[]>([])
+  /** This button's own pending state — independent of `disabled` (the save). */
+  const [uploading, setUploading] = useState(false)
   const [counter, setCounter] = useState(0)
-  /** Why some of what the admin just picked did not make it into the strip. */
+  /** Why some of what the admin just picked did not make it into the strip,
+   *  or why an upload attempt did not fully succeed. */
   const [notice, setNotice] = useState<string | null>(null)
 
   /**
@@ -110,7 +130,7 @@ export function ProductGalleryField({
     }
   }, [])
 
-  const total = kept.length + picked.length
+  const total = kept.length + uploaded.length + picked.length
   const remaining = MAX_GALLERY_IMAGES - total
 
   /**
@@ -192,6 +212,74 @@ export function ProductGalleryField({
     syncInput(next)
   }
 
+  /**
+   * Push every picked-but-not-yet-uploaded file to Cloudinary right now,
+   * instead of waiting for the whole product to be saved.
+   *
+   * Keyed the same way variant and ingredient rows are: each `File` travels
+   * with the `key` of the tile it came from, so a partial failure (three of
+   * five uploaded) can move exactly the successful ones out of `picked` and
+   * into `uploaded`, leaving the failed ones exactly where they were —
+   * still picked, still showing whatever they showed before, free to retry.
+   */
+  async function handleUpload() {
+    if (picked.length === 0 || uploading) return
+
+    setUploading(true)
+    setNotice(null)
+
+    const formData = new FormData()
+    for (const item of picked) {
+      formData.append("imageKey", item.key)
+      formData.append("image", item.file)
+    }
+
+    const result = await uploadProductImagesAction(formData)
+    setUploading(false)
+
+    if (!result.ok) {
+      setNotice(result.message)
+      return
+    }
+
+    const succeeded = new Map(
+      result.results
+        .filter((entry) => entry.ok)
+        .map((entry) => [entry.key, entry.url] as const)
+    )
+    const failed = result.results.filter((entry) => !entry.ok)
+
+    if (succeeded.size > 0) {
+      onChanged?.()
+
+      setUploaded((current) => [
+        ...current,
+        ...picked
+          .filter((item) => succeeded.has(item.key))
+          .map((item) => ({ key: item.key, url: succeeded.get(item.key)! })),
+      ])
+
+      for (const item of picked) {
+        if (succeeded.has(item.key)) URL.revokeObjectURL(item.preview)
+      }
+
+      const stillPicked = picked.filter((item) => !succeeded.has(item.key))
+      setPicked(stillPicked)
+      syncInput(stillPicked)
+    }
+
+    if (failed.length > 0) {
+      const first = failed[0]
+      const failedFile = picked.find((item) => item.key === first.key)
+      const label =
+        failed.length > 1
+          ? `${failed.length} صور`
+          : (failedFile?.file.name ?? "صورة واحدة")
+
+      setNotice(`تعذّر رفع ${label}: ${first.message}`)
+    }
+  }
+
   function move(index: number, direction: -1 | 1) {
     const target = index + direction
     if (target < 0 || target >= kept.length) return
@@ -241,12 +329,35 @@ export function ProductGalleryField({
             </li>
           ))}
 
+          {uploaded.map((item, index) => (
+            <li key={item.key}>
+              <GalleryTile
+                src={item.url}
+                cover={kept.length === 0 && index === 0}
+                uploaded
+                disabled={disabled}
+                onRemove={() => {
+                  onChanged?.()
+                  setUploaded((current) =>
+                    current.filter((entry) => entry.key !== item.key)
+                  )
+                }}
+              />
+              {/* Not a `keepImage` — no `ProductImage` row exists yet, this
+                  is a bare Cloudinary URL the service will create a row for
+                  on save. Same "order is position" rule as `keepImage`. */}
+              <input type="hidden" name="newImageUrl" value={item.url} />
+            </li>
+          ))}
+
           {picked.map((item, index) => (
             <li key={item.key}>
               <GalleryTile
                 src={item.preview}
                 blob
-                cover={kept.length === 0 && index === 0}
+                cover={
+                  kept.length === 0 && uploaded.length === 0 && index === 0
+                }
                 pending
                 uploading={disabled}
                 disabled={disabled}
@@ -256,6 +367,30 @@ export function ProductGalleryField({
           ))}
         </ul>
       )}
+
+      {picked.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={handleUpload}
+            disabled={disabled || uploading}
+          >
+            {uploading ? <Spinner /> : <CloudUploadIcon aria-hidden="true" />}
+            {uploading
+              ? "جارٍ الرفع…"
+              : picked.length > 1
+                ? `ارفع ${picked.length} صور إلى Cloudinary`
+                : "ارفع الصورة إلى Cloudinary"}
+          </Button>
+          <FieldDescription>
+            يرفع الصور المختارة فورًا، بدل انتظار حفظ العطر كاملًا — يمكن
+            المتابعة وحفظ العطر بعدها مباشرة.
+          </FieldDescription>
+        </div>
+      ) : null}
 
       {/* `disabled` here means the save request is in flight — the moment
           every picked file is actually being sent to Cloudinary from inside
@@ -328,6 +463,11 @@ type GalleryTileProps = {
   pending?: boolean
   /** The save request is in flight, actually sending this file to Cloudinary. */
   uploading?: boolean
+  /**
+   * Already on Cloudinary via the "ارفع الصور" button — a real `src`, not a
+   * `blob:` preview, and nothing left to do for this tile except save.
+   */
+  uploaded?: boolean
   disabled?: boolean
   onRemove: () => void
   onMoveStart?: () => void
@@ -340,6 +480,7 @@ function GalleryTile({
   cover,
   pending,
   uploading,
+  uploaded,
   disabled,
   onRemove,
   onMoveStart,
@@ -408,6 +549,16 @@ function GalleryTile({
       {cover ? (
         <span className="absolute top-1 start-1 rounded bg-gold px-1 text-[0.625rem] font-medium text-gold-foreground">
           الغلاف
+        </span>
+      ) : null}
+
+      {uploaded ? (
+        <span
+          className="absolute bottom-1 start-1 flex items-center gap-0.5 rounded bg-background/90 px-1 text-[0.625rem] font-medium text-muted-foreground"
+          title="تم رفعها إلى Cloudinary"
+        >
+          <CheckIcon className="size-3" aria-hidden="true" />
+          تم الرفع
         </span>
       ) : null}
     </div>

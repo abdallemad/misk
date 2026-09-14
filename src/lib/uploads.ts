@@ -81,6 +81,22 @@ export async function saveImage(file: File): Promise<string> {
 }
 
 /**
+ * Is this URL one we actually uploaded?
+ *
+ * `product.service.ts` uses this to gate `newImageUrls` — the URLs the
+ * gallery's "ارفع الصور" button already pushed to Cloudinary, arriving as
+ * plain strings on the next `FormData` rather than as `File`s. They never
+ * pass through `saveImage`'s magic-byte sniff, so this is what stands in for
+ * it: not "is this bytes we recognise" but "does this URL even point at our
+ * own Cloudinary account." Anything else — a hand-edited value, a URL from
+ * some other host — is dropped rather than trusted. Same check `deleteImage`
+ * already relies on via `publicIdFromUrl`, reused rather than duplicated.
+ */
+export function isStoredImageUrl(url: string): boolean {
+  return publicIdFromUrl(url) !== null
+}
+
+/**
  * Delete a previously stored image. Never throws.
  *
  * Anything that is not one of our own Cloudinary URLs is ignored — a

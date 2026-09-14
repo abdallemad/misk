@@ -412,7 +412,7 @@ column, top to bottom:
 | Heading | category (link) · type eyebrow, the name as `<h1>`, the "from" price |
 | Description | the full `Product.description` — required and NOT NULL, so always present |
 | **Buy box** | `AddToCartForm` — the size/weight toggle buttons, a quantity stepper, buy now (live — adds to cart, then pushes to `/checkout`) / add to cart (live) |
-| الجودة والمكوّنات | the ingredient list with notes, only when the perfume has any (the panel [`misk_business_analysis.md`](./misk_business_analysis.md) §6 asks for) |
+| قلب العطر | the ingredient list with notes, only when the perfume has any (the panel [`misk_business_analysis.md`](./misk_business_analysis.md) §6 asks for) — `.heart-gradient` background (`globals.css`), renamed from "الجودة والمكوّنات" at the shop's request |
 
 ### `AddToCartForm`'s buy box picks with buttons, not a dropdown
 

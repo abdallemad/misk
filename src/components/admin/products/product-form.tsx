@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { startTransition, useActionState, useEffect, useState } from "react"
+import { Fieldset } from "@base-ui/react/fieldset"
 import type { ProductType } from "@prisma/client"
 import { toast } from "sonner"
 
@@ -239,15 +240,23 @@ export function ProductForm({
 
       {/* `display: contents` so the fieldset adds no box of its own — the
           section cards stay direct flex children of `<Form>`, exactly as
-          they were before this wrapper existed. Disabling here is a native
-          HTML mechanism: it reaches every real `<input>`, `<select>`,
-          `<textarea>` and `<button>` underneath, including the ones inside
-          Base UI's `Select`/`Switch`, so the whole form — not just the
-          gallery and the row editors — is inert while a save is in flight.
-          Before this, `name`/`slug`/`description`/`categoryId`/`productType`
-          /`isActive` stayed editable during the request, which is what made
-          a save in progress look indistinguishable from an idle form. */}
-      <fieldset disabled={pending} className="contents">
+          they were before this wrapper existed. Base UI's `Fieldset.Root`,
+          not a plain `<fieldset>`: it still renders a real `<fieldset
+          disabled>` (so every native `<input>`/`<textarea>` underneath is
+          inert exactly as before), but it *also* provides the
+          `FieldsetRootContext` that `Select.Root` and `Switch.Root` read
+          `disabled` from (via the ambient `Field.Root` each sits inside) —
+          `useFieldRootContext()` → `useFieldsetRootContext()`. A native
+          `<fieldset>` cascades disabled state to the raw DOM node, which is
+          invisible to that context lookup, so Base UI's own controls never
+          learned a save was in flight: they kept running validation and
+          registering as "enabled" while every plain input around them was
+          correctly locked. Swapping the element is the whole fix; nothing
+          else about this wrapper changes. Before this, `name`/`slug`
+          /`description`/`categoryId`/`productType`/`isActive` stayed
+          editable during the request, which is what made a save in progress
+          look indistinguishable from an idle form. */}
+      <Fieldset.Root disabled={pending} className="contents">
         <SectionCard
           title="بيانات العطر"
           description="الاسم والوصف كما يقرأهما الزائر على صفحة المنتج."
@@ -427,7 +436,7 @@ export function ProductForm({
             disabled={pending}
           />
         </SectionCard>
-      </fieldset>
+      </Fieldset.Root>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         {/* An anchor, so neither `type` nor `disabled` would do anything on

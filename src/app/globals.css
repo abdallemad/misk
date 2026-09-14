@@ -505,4 +505,18 @@
       transparent 75%
     );
   }
+
+  /* «قلب العطر» — the ingredients panel on the product page. A smaller,
+     card-scaled echo of .brand-sheen's gold/oud blend rather than a full
+     radial pool: a diagonal wash so the card itself reads as the warm
+     centre of the page, not just its heading. */
+  .heart-gradient {
+    @apply bg-secondary;
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--gold) 18%, var(--secondary)),
+      color-mix(in oklch, var(--oud) 14%, transparent) 55%,
+      var(--secondary) 100%
+    );
+  }
 }

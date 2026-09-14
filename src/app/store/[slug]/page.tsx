@@ -108,8 +108,8 @@ export default async function StoreProductPage(
           <AddToCartForm variants={product.variants} />
 
           {product.ingredients.length > 0 ? (
-            <section className="rounded-xl bg-secondary/40 p-4">
-              <h2 className="text-sm font-semibold">الجودة والمكوّنات</h2>
+            <section className="heart-gradient rounded-xl p-4">
+              <h2 className="text-sm font-semibold">قلب العطر</h2>
               <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">
                 {product.ingredients.map((ingredient) => (
                   <li key={ingredient.name}>

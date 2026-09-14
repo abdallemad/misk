@@ -376,6 +376,43 @@ fourth file failing, the three already on disk have to be removed, and
 awaiting them in order is what makes "what has been written so far" a knowable
 list.
 
+### The gallery has its own upload button
+
+**"ارفع الصور"**, next to the picked-files strip, calls a second Server
+Action — `actions/product/upload-product-images.ts` — that does nothing but
+upload: it validates each picked file against the same `galleryImage` Zod
+rule `saveProductAction` uses, pushes it to Cloudinary through the same
+`saveImage()`, and hands back a URL per file, keyed the same way variant and
+ingredient rows are (a repeated `imageKey` names which tile a result belongs
+to, so a partial failure — three of five uploaded — moves exactly the
+successful ones on without touching the two that failed).
+
+A photo the button already uploaded stops being a `File` in the `images`
+input and becomes a hidden `newImageUrl` — a bare Cloudinary URL, submitted
+alongside `keepImage` and in the same "order is position" style. The service
+treats it exactly like a kept photo except that no `ProductImage` row exists
+for it yet: `createProduct`/`updateProduct` filter it through
+`isStoredImageUrl()` (`lib/uploads.ts`, reusing `publicIdFromUrl` — the same
+check `deleteImage` already trusted) before writing a row, so a hand-edited
+or foreign URL cannot ride in on this field. On cleanup after a failed save,
+a pre-uploaded photo is deleted from Cloudinary exactly like one uploaded
+inside that same request — `allUrls`/`newUrls` cover both, not just this
+call's own `storeGallery()` output.
+
+This is additive, not a replacement: skipping the button and pressing the
+real save still uploads whatever is left in `images`, exactly as before. The
+button exists because uploading and saving used to be *one* request — see
+"Feedback while a save is in flight" below — so a gallery-heavy save took
+several seconds with a spinner as the only feedback. Pressing "ارفع الصور"
+first means every photo is confirmed on Cloudinary, one at a time, before the
+admin commits to the rest of the form; the final save is then a plain,
+fast database write.
+
+An uploaded-but-never-saved photo (the tab closed before the real save) is an
+accepted trade-off — the same one an abandoned draft always had — not a bug:
+nothing can reach into `ProductImage` early, since on *create* no product row
+exists yet to point at it.
+
 ### `altText` is not in the form
 
 `ProductImage.altText` exists and stays `null`. The right alt text for a
@@ -632,16 +669,29 @@ uploading photos in the background. `product-form.tsx` now wraps every
 `<SectionCard>` in:
 
 ```tsx
-<fieldset disabled={pending} className="contents">
+<Fieldset.Root disabled={pending} className="contents">
 ```
 
-`className="contents"` (`display: contents`) is what makes this free: the
-`<fieldset>` renders no box of its own, so the section cards stay direct flex
-children of `<Form>` exactly as they were, and none of the existing spacing
-or grid classes has to change. `disabled` on a `<fieldset>` is a native HTML
-mechanism, not a React prop — it reaches every real `<input>`, `<select>`,
-`<textarea>` and `<button>` underneath, which includes the ones Base UI's
-`Select` and `Switch` render internally. The `disabled={pending}` props
+Base UI's own `Fieldset.Root` (`@base-ui/react/fieldset`), **not** a plain
+`<fieldset>` — the first version of this shipped with a native element and
+looked correct (it still renders a real `<fieldset disabled>`, so every
+plain `<input>`/`<textarea>` underneath was genuinely locked), but Base UI's
+own form controls never learned about it. `Select.Root` and `Switch.Root`
+both read their ambient disabled state as `useFieldRootContext().disabled`,
+and `Field.Root` (what every `<Field name="…">` in this form is) only ever
+sets that from `useFieldsetRootContext(true)?.disabled` — a React context
+`Fieldset.Root` provides and a plain native `<fieldset>` does not. So the two
+selects and the switch kept registering themselves as enabled, running
+validation and reacting to interaction, throughout every save, while
+everything native around them was correctly inert. `Fieldset.Root` still
+renders a plain `<fieldset>` DOM node with the same `disabled` cascading —
+swapping the element is the entire fix, and nothing else about this wrapper
+changes.
+
+`className="contents"` (`display: contents`) is what keeps this free either
+way: the fieldset renders no box of its own, so the section cards stay direct
+flex children of `<Form>` exactly as they were, and none of the existing
+spacing or grid classes has to change. The `disabled={pending}` props
 already threaded into the gallery and the two row editors are left in place
 rather than relied on alone — belt and braces, and removing them would be a
 second change with no upside.
@@ -702,6 +752,7 @@ endpoint that never renders that layout, so **both actions re-check
 | `…/product-ingredients-field.tsx` | The ingredient rows and their `<datalist>` |
 | `…/delete-product-dialog.tsx` | Confirm-and-delete — `useTransition` |
 | `src/actions/product/save-product.ts` | Create or update, product + gallery + variants |
+| `src/actions/product/upload-product-images.ts` | The gallery's "ارفع الصور" button — uploads picked files to Cloudinary ahead of the save |
 | `src/actions/product/delete-product.ts` | Delete |
 | `src/schemas/product.schema.ts` | Zod rules, the keyed-row FormData adapter, form state |
 | `src/services/product.service.ts` | Every rule about products |

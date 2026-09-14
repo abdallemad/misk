@@ -95,7 +95,14 @@ const categoryId = z.string().trim().min(1, "اختر الفئة التي يند
 
 const productType = z.enum(PRODUCT_TYPES, { error: "اختر نوع المنتج." })
 
-const galleryImage = z
+/**
+ * Exported (unlike every other field rule here) because the gallery's
+ * "ارفع الصور" button validates one file at a time, before the rest of the
+ * form even exists as a `FormData` — `actions/product/upload-product-images.ts`
+ * runs this same rule, so a file rejected there and a file rejected by the
+ * main save are rejected for the same reason, never a drifted second copy.
+ */
+export const galleryImage = z
   .file()
   .max(MAX_IMAGE_BYTES, `حجم الصورة كبير — ${MAX_IMAGE_MB} ميجابايت كحد أقصى.`)
   .mime([...ACCEPTED_IMAGE_MIME], `الصيغ المدعومة: ${IMAGE_FORMATS_LABEL}.`)
@@ -220,7 +227,17 @@ export const productFormSchema = z
      * deleting are one field rather than two that can contradict each other.
      */
     keepImageIds: z.array(z.string()),
-    /** Newly picked files, appended after the kept ones. */
+    /**
+     * Photos already pushed to Cloudinary by the gallery's "ارفع الصور"
+     * button — a URL, not a `File`. Appended after `keepImageIds` and before
+     * `images`, matching the order the gallery renders them in: kept, then
+     * uploaded, then whatever is still only picked. Provenance (that this is
+     * really one of *our* Cloudinary URLs, not a hand-edited one) is checked
+     * server-side in `product.service.ts`, which is the only place that can
+     * reach `lib/cloudinary.ts` — this schema runs in the browser too.
+     */
+    newImageUrls: z.array(z.string().trim().min(1)),
+    /** Newly picked files not yet uploaded, appended after the above. */
     images: z.array(galleryImage),
     variants: z
       .array(variantSchema)
@@ -231,7 +248,10 @@ export const productFormSchema = z
       .max(MAX_INGREDIENTS, `الحد الأقصى ${MAX_INGREDIENTS} مكوّنًا للعطر الواحد.`),
   })
   .superRefine((form, ctx) => {
-    if (form.keepImageIds.length + form.images.length > MAX_GALLERY_IMAGES) {
+    if (
+      form.keepImageIds.length + form.newImageUrls.length + form.images.length >
+      MAX_GALLERY_IMAGES
+    ) {
       ctx.addIssue({
         code: "custom",
         path: ["images"],
@@ -465,6 +485,7 @@ export function parseProductForm(
     productType: text("productType"),
     isActive: formData.get("isActive") !== null,
     keepImageIds: keys("keepImage"),
+    newImageUrls: keys("newImageUrl"),
     images: formData
       .getAll("images")
       .filter((value): value is File => value instanceof File && value.size > 0),

@@ -11,7 +11,12 @@ import {
 } from "@/constants/catalog"
 import { IMAGE_FORMATS_LABEL } from "@/constants/uploads"
 import { db } from "@/lib/db"
-import { deleteImage, saveImage, UnsupportedImageError } from "@/lib/uploads"
+import {
+  deleteImage,
+  isStoredImageUrl,
+  saveImage,
+  UnsupportedImageError,
+} from "@/lib/uploads"
 import {
   ingredientKey,
   variantCombination,
@@ -341,6 +346,13 @@ export async function createProduct(
   const invalid = checkVariants(input)
   if (invalid) return invalid
 
+  // Order matches the gallery's own render order: images the "ارفع الصور"
+  // button already pushed to Cloudinary (pre-uploaded, arriving as URLs)
+  // come before whatever the admin picked but left for this save to upload.
+  // `isStoredImageUrl` drops anything that is not actually one of our own
+  // Cloudinary URLs — see its doc comment in `lib/uploads.ts`.
+  const preUploaded = input.newImageUrls.filter(isStoredImageUrl)
+
   let urls: string[] = []
 
   try {
@@ -348,6 +360,8 @@ export async function createProduct(
   } catch (error) {
     return imageFailure(error)
   }
+
+  const allUrls = [...preUploaded, ...urls]
 
   try {
     const skus = await mintSkus(input.slug, input.productType, input.variants)
@@ -364,7 +378,7 @@ export async function createProduct(
           productType: input.productType,
           isActive: input.isActive,
           images: {
-            create: urls.map((url, position) => ({ url, position })),
+            create: allUrls.map((url, position) => ({ url, position })),
           },
           variants: {
             create: input.variants.map((variant) => ({
@@ -386,8 +400,11 @@ export async function createProduct(
     return { ok: true, product }
   } catch (error) {
     // The rows were rejected, so the files they would have pointed at are
-    // garbage. Cleanup is best-effort and never masks the real failure.
-    await Promise.all(urls.map(deleteImage))
+    // garbage — `allUrls`, not just this call's `urls`: a pre-uploaded photo
+    // from the gallery's "ارفع الصور" button is just as orphaned by a failed
+    // create as one uploaded a moment ago inside this same request. Cleanup
+    // is best-effort and never masks the real failure.
+    await Promise.all(allUrls.map(deleteImage))
 
     return writeFailure(error, "تعذّر حفظ العطر. حاول مرة أخرى.")
   }
@@ -466,6 +483,10 @@ export async function updateProduct(
     (image) => !keptImageIds.includes(image.id)
   )
 
+  // Same order as `createProduct`: pre-uploaded (via the gallery's "ارفع
+  // الصور" button) before whatever is still only a picked `File`.
+  const preUploaded = input.newImageUrls.filter(isStoredImageUrl)
+
   let urls: string[] = []
 
   try {
@@ -473,6 +494,8 @@ export async function updateProduct(
   } catch (error) {
     return imageFailure(error)
   }
+
+  const newUrls = [...preUploaded, ...urls]
 
   try {
     const newRows = rows.filter((row) => row.id === null)
@@ -492,7 +515,7 @@ export async function updateProduct(
       )
 
       await tx.productImage.createMany({
-        data: urls.map((url, index) => ({
+        data: newUrls.map((url, index) => ({
           productId: id,
           url,
           position: keptImageIds.length + index,
@@ -550,7 +573,7 @@ export async function updateProduct(
 
     return { ok: true, product }
   } catch (error) {
-    await Promise.all(urls.map(deleteImage))
+    await Promise.all(newUrls.map(deleteImage))
 
     return writeFailure(error, "تعذّر تحديث العطر. حاول مرة أخرى.")
   }

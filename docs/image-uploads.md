@@ -35,8 +35,16 @@ The public surface of `lib/uploads.ts`:
 ```ts
 saveImage(file: File): Promise<string>          // → the URL to store on the row
 deleteImage(url: string | null | undefined): Promise<void>   // never throws
+isStoredImageUrl(url: string): boolean          // is this really one of ours?
 UnsupportedImageError                            // thrown on non-image bytes
 ```
+
+`isStoredImageUrl` is the newest of the four, added for
+`upload-product-images.ts`'s pre-uploaded photos (see
+[`products-feature.md`](./products-feature.md#the-gallery-has-its-own-upload-button)):
+a thin wrapper over the same `publicIdFromUrl` parse `deleteImage` already
+used to recognise "one of our own Cloudinary URLs" — reused, not duplicated,
+so the two callers can never disagree about what counts as ours.
 
 `category.service.ts` and `product.service.ts` are **untouched** — they still
 call `saveImage` / `deleteImage`, still get a URL, still translate
@@ -54,6 +62,11 @@ points."* Cloudinary instead of R2, same seam.
 ```text
   components/admin/{products,categories}/*-field.tsx   pick + preview
         │  (multipart FormData, through the Server Action body — see the cap below)
+        │
+        ├──→ actions/product/upload-product-images.ts   the gallery's "ارفع
+        │      "use server" — isAdmin(), validate one file at a time,       الصور"
+        │      saveImage() each — no product row involved, just the upload  button
+        │
         ↓
   actions/{product,category}/save-*.ts     "use server" — isAdmin(), parse, delegate
         │
@@ -69,6 +82,16 @@ points."* Cloudinary instead of R2, same seam.
         ↓
   api.cloudinary.com/v1_1/<cloud>/…
 ```
+
+`upload-product-images.ts` joins the diagram one layer up from
+`save-product.ts` rather than replacing anything below it — it calls the
+exact same `saveImage()`, so a photo uploaded through the button and a photo
+uploaded because the admin skipped the button are indistinguishable by the
+time either reaches Cloudinary. What comes back is a URL rather than a row:
+`product.service.ts` reads it as `input.newImageUrls`, checks it with the new
+`isStoredImageUrl()` below, and folds it in next to whatever `storeGallery()`
+still had to upload for this save. See
+[`products-feature.md`](./products-feature.md#the-gallery-has-its-own-upload-button).
 
 `lib/cloudinary.ts` is the new module. It is the "Cloudflare R2 Configuration"
 slot [`folder-structure.md`](./folder-structure.md) reserved in `lib/` — a
@@ -222,15 +245,23 @@ A seeded catalogue (`npm run seed-dev`) carries **no images** — every card on
 unchanged and is [`database-seeding.md`](./database-seeding.md)'s call, not a
 regression.
 
-### There is nothing to watch between "picked" and "saved"
+### There is nothing to watch between "picked" and "saved" — unless "ارفع الصور" was pressed
 
-The upload has no request of its own to inspect in the Network tab — it
-happens from inside `saveProductAction`, so the only visible request is the
-one Server Action POST, and it does not resolve until every new file has
-already round-tripped to Cloudinary. What the product form shows for that
-whole window — a spinner over each picked tile, a "جارٍ رفع الصور…" line, the
-rest of the form locked — is covered in `products-feature.md`,
+Skip the button and the upload still has no request of its own to inspect in
+the Network tab — it happens from inside `saveProductAction`, so the only
+visible request is the one Server Action POST, and it does not resolve until
+every new file has already round-tripped to Cloudinary. What the product form
+shows for that whole window — a spinner over each picked tile, a "جارٍ رفع
+الصور…" line, the rest of the form locked — is covered in
+`products-feature.md`,
 ["Feedback while a save is in flight"](./products-feature.md#feedback-while-a-save-is-in-flight).
+
+Press "ارفع الصور" first and there **is** now something to watch: a separate
+POST to `upload-product-images.ts` that resolves before the real save is ever
+dispatched, and a tile that flips straight from its upload spinner to a
+"تم الرفع" badge — proof a given photo is on Cloudinary well before the admin
+commits to the rest of the form. See
+[`products-feature.md`](./products-feature.md#the-gallery-has-its-own-upload-button).
 
 ---
 
@@ -241,12 +272,17 @@ the fly via URL segments (`.../image/upload/w_600,f_auto,q_auto/...`). A
 `next/image` custom `loader` that injects those would cut bytes further.
 Nothing stores anything but the base `secure_url` today, so this is additive.
 
-**Browser → Cloudinary direct upload.** Sign an upload on the server, hand the
-browser a short-lived signature, POST the file straight to Cloudinary. Removes
-the `bodySizeLimit` constraint and the double hop. It is a real feature — a
-new Server Action that returns a signature, a client uploader, and a decision
-about orphaned assets when the form is then abandoned — not a refactor of this
-module.
+**Browser → Cloudinary direct upload.** `upload-product-images.ts` is *not*
+this — it moved the upload earlier (ahead of the product save), not off the
+server. The file still travels through a Server Action body exactly like
+`save-product.ts`'s did, so the `bodySizeLimit` constraint and the double hop
+are both still there; what changed is *when* that hop happens, not whether it
+does. The real version of this bullet is still open: sign an upload on the
+server, hand the browser a short-lived signature, POST the file straight to
+Cloudinary with no server hop at all. Orphaned assets when a form is
+abandoned after uploading are already an accepted trade-off either way — see
+`products-feature.md` — so that part of the decision is made; what is left is
+purely removing the hop.
 
 **Moving off Cloudinary.** Rewrite `lib/cloudinary.ts` (or replace it and
 re-point `lib/uploads.ts`). Same seam as last time; nothing above the service
