@@ -85,6 +85,7 @@ export default async function OrderDetailPage(
               variant="ghost"
               size="sm"
               className="ms-auto"
+              nativeButton={false}
               render={<Link href={adminCustomerRoute(order.customer.id)} />}
             >
               <UserIcon aria-hidden="true" />

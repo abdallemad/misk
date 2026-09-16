@@ -97,8 +97,8 @@ the message once without stealing focus, and the mark pulses under
 This is the subtle part, and it is worth understanding before changing
 anything in `sign-in/page.tsx`.
 
-When `proxy.ts` bounces a signed-out visitor off `/admin`, Clerk sends them
-to sign-in with the original destination attached:
+When `admin/layout.tsx`'s `auth.protect()` bounces a signed-out visitor off
+`/admin`, Clerk sends them to sign-in with the original destination attached:
 
 ```text
 /sign-in?redirect_url=http%3A%2F%2Flocalhost%3A3000%2Fadmin

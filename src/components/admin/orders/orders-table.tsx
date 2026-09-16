@@ -136,6 +136,7 @@ export function OrdersTable({ orders, filtered = false }: OrdersTableProps) {
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        nativeButton={false}
                         render={<Link href={adminOrderRoute(order.id)} />}
                       />
                     }

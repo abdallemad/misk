@@ -16,8 +16,8 @@ How `/admin` is locked down.
         │
         ↓
   ┌─────────────────────────────────────────────┐
-  │ src/proxy.ts                                │
-  │   isProtectedRoute → auth.protect()         │   signed out
+  │ src/app/admin/layout.tsx                    │
+  │   await auth.protect()                      │   signed out
   │                                             │ ──────────────→ /sign-in
   └────────────────────┬────────────────────────┘
                        ↓ signed in
@@ -30,41 +30,32 @@ How `/admin` is locked down.
                   the console
 ```
 
-### Gate 1 — `proxy.ts`: is there a session?
+Both gates now live in the same file, `admin/layout.tsx`. Gate 1 used to sit in
+`src/proxy.ts` instead, matched by path (`createRouteMatcher(["/admin(.*)", …])`).
+Clerk deprecated that pattern: a proxy decides access by matching the URL,
+which can drift from how Next.js actually resolves a request and leave a
+resource reachable that the matcher meant to cover. `proxy.ts` still exists —
+`clerkMiddleware()` with no callback, kept because `auth()`/`auth.protect()`
+need it running — but it no longer makes any admit/deny decision. See
+`src/proxy.ts`'s own comment and
+[Clerk's migration guide](https://clerk.com/docs/guides/development/upgrading/upgrade-guides/migrate-from-create-route-matcher).
 
-```ts
-const isProtectedRoute = createRouteMatcher([
-  "/admin(.*)",
-  "/account(.*)",
-  "/checkout(.*)",
-])
-
-export default clerkMiddleware(async (auth, request) => {
-  if (isProtectedRoute(request)) {
-    await auth.protect()
-  }
-})
-```
-
-Session only. **No role check here**, for three reasons:
-
-- Reading a role in the proxy means either a Clerk API call or a customised
-  session token, and the proxy runs on every request — including every
-  `<Link>` prefetch.
-- It is the wrong place to fail. A proxy can only redirect, and a redirect
-  cannot explain itself.
-- Next.js 16 renamed `middleware` to `proxy` precisely to signal that this
-  layer is about routing and the network boundary, not about authorisation
-  logic. The runtime here is `nodejs` and is not configurable.
-
-### Gate 2 — `admin/layout.tsx`: is the session an admin?
+### Gate 1 — `auth.protect()`: is there a session?
 
 ```tsx
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
+  await auth.protect()
   if (!(await isAdmin())) notFound()
   …
 }
 ```
+
+Session only, and checked first — a signed-out visitor should be bounced to
+sign-in, not told the page doesn't exist. That distinction is the reason this
+stays a separate call rather than folding into `isAdmin()`, which fails closed
+(`false`) for both "no session" and "session, wrong role" alike.
+
+### Gate 2 — `isAdmin()`: is the session an admin?
 
 Every route under `/admin` renders *inside* this layout, so there is no
 `/admin/*` page that can be added later and forget to protect itself. That is
@@ -169,15 +160,21 @@ writes the mirror itself).
 
 ## What is *not* protected
 
-`proxy.ts` matches `/admin(.*)`, `/account(.*)` and `/checkout(.*)` — the
-last one joined in `docs/checkout-orders-feature.md`, on the same reasoning:
-an `Order` needs a `User` row, so placing one has to be signed-in-only.
-Everything else is public. When you add a Server Action that mutates admin
-data, **re-check `isAdmin()` inside the action** — a Server Action is a POST
-endpoint, and the layout guard does not run for it. The layout protects
-pages, not mutations. (`placeOrderAction` follows the equivalent rule with
-`getCurrentUser()` instead of `isAdmin()` — there is no role to check, only
-that someone is signed in at all.)
+Three subtrees call `auth.protect()` in their own layout: `admin/layout.tsx`,
+`account/layout.tsx`, and `checkout/layout.tsx` — the last two joined in
+`docs/checkout-orders-feature.md`, on the same reasoning: an `Order` needs a
+`User` row, so placing one has to be signed-in-only. Everything else is
+public. When you add a Server Action that mutates admin data, **re-check
+`isAdmin()` inside the action** — a Server Action is a POST endpoint, and the
+layout guard does not run for it. The layout protects pages, not mutations.
+(`placeOrderAction` follows the equivalent rule with `getCurrentUser()`
+instead of `isAdmin()` — there is no role to check, only that someone is
+signed in at all.)
+
+The same applies to a Route Handler (`route.ts`) added under one of these
+trees in the future: it does not render the layout either, so it would need
+its own `auth.protect()` / `isAdmin()` call, same as an action. There are none
+today — every mutation in this app goes through a Server Action instead.
 
 ---
 
@@ -192,7 +189,9 @@ token**) with:
 { "metadata": "{{user.public_metadata}}" }
 ```
 
-Nothing currently depends on it. It is declared so that if `/admin` ever
-needs a proxy-level role check without an API round trip, the type is already
-correct. Adding the check would not replace the layout guard — it would sit
-in front of it.
+Nothing currently depends on it. It is declared so that if `/admin` ever wants
+a cheap early redirect for signed-out visitors — read back in `proxy.ts`
+without an API round trip — the type is already correct. Per Clerk's own
+guidance, that would be a performance shortcut only, never the security
+boundary: `auth.protect()` and `isAdmin()` in the layout would still have to
+run and would still be what actually decides access.

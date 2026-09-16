@@ -108,14 +108,14 @@ app/
 │   └── page.tsx             #   layout, not nested — same reasoning as store/)
 │
 ├── checkout/               #   /checkout — built — checkout-orders-feature.md.
-│   ├── layout.tsx           #   Signed-in only (proxy.ts) — phone(s) + an
+│   ├── layout.tsx           #   Signed-in only (auth.protect()) — phone(s) + an
 │   └── page.tsx             #   Egyptian address (governorate dropdown/city/
 │                            #   center/street/building), then "تأكيد الطلب".
 │                            #   Own plain folder, same reasoning as store/
 │                            #   and cart/
 │
 ├── account/                #   /account/* — built (orders only) — same
-│   ├── layout.tsx           #   storefront chrome. Signed-in only (proxy.ts)
+│   ├── layout.tsx           #   storefront chrome. Signed-in only (auth.protect())
 │   └── orders/               #   /account/orders + [id] — checkout-orders-feature.md.
 │       ├── page.tsx          #   The shopper's own order history, no paging
 │       └── [id]/page.tsx     #   One of the shopper's own orders — 404 if not

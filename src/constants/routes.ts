@@ -114,8 +114,9 @@ export const DEFAULT_AFTER_AUTH_REDIRECT = ROUTES.home
  * Reduce an arbitrary redirect target to a safe path on **our** origin.
  *
  * The value reaches us from the address bar — Clerk appends
- * `?redirect_url=http://localhost:3000/admin` when its proxy guard bounces a
- * signed-out visitor — so an unchecked hand-off here would be an
+ * `?redirect_url=http://localhost:3000/admin` when `admin/layout.tsx`'s
+ * `auth.protect()` bounces a signed-out visitor — so an unchecked hand-off
+ * here would be an
  * open-redirect hole in the sign-in flow: a link that signs a user in and
  * drops them on a lookalike site with a real session in hand.
  *

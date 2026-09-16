@@ -165,6 +165,7 @@ export function CustomersTable({
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        nativeButton={false}
                         render={<Link href={adminCustomerRoute(customer.id)} />}
                       />
                     }

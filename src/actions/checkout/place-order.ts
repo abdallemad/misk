@@ -14,11 +14,11 @@ import { createOrder } from "@/services/order.service"
 /**
  * Place a cash-on-delivery order from the current cart.
  *
- * `/checkout` sits behind the proxy's session gate (`proxy.ts`), but a Server
- * Action is a POST endpoint a request can in principle reach without ever
- * rendering that page, so `getCurrentUser()` is re-checked here — the same
- * belt-and-braces every admin action takes with `isAdmin()`, and the reason
- * is identical: the page-level guard does not run for the action itself.
+ * `/checkout` sits behind `checkout/layout.tsx`'s `auth.protect()`, but a
+ * Server Action is a POST endpoint a request can in principle reach without
+ * ever rendering that layout, so `getCurrentUser()` is re-checked here — the
+ * same belt-and-braces every admin action takes with `isAdmin()`, and the
+ * reason is identical: the layout guard does not run for the action itself.
  *
  * Shaped for `useActionState`: takes the previous state, returns the next,
  * never throws *for an error* — an error is a returned state, same as every

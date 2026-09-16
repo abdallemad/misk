@@ -64,6 +64,7 @@ export function AdminPagination({
           <Button
             variant="outline"
             size="sm"
+            nativeButton={false}
             render={<Link href={hrefFor(page - 1)} />}
           >
             <ChevronRightIcon aria-hidden="true" />
@@ -80,6 +81,7 @@ export function AdminPagination({
           <Button
             variant="outline"
             size="sm"
+            nativeButton={false}
             render={<Link href={hrefFor(page + 1)} />}
           >
             التالي

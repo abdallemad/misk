@@ -27,25 +27,32 @@ delivery**; there is no online payment step.
 /account/orders/[id]     signed in — one of the shopper's own orders; 404 if it is not theirs
 ```
 
-All three sit behind the proxy's session gate — `proxy.ts` now protects
-`/checkout(.*)` the same way it already protected `/admin(.*)` and
-`/account(.*)`. An `Order` needs a `User` row (`Order.userId` is a real
-foreign key), and `syncCurrentUser()` only ever runs on `/auth-callback`
+All three sit behind a session gate — `checkout/layout.tsx` and
+`account/layout.tsx` each call `auth.protect()`, the same call
+`admin/layout.tsx` makes. An `Order` needs a `User` row (`Order.userId` is a
+real foreign key), and `syncCurrentUser()` only ever runs on `/auth-callback`
 ([`auth-callback.md`](./auth-callback.md)) — so a shopper who is not signed in
 is bounced to `/sign-in?redirect_url=/checkout`, signs in, passes through
 `/auth-callback` (which is what actually creates the row), and lands back on
-`/checkout` exactly as `forceRedirectUrl` already does for `/admin`. Nothing
-about that mechanism changed; `/checkout` just joined the list of paths it
-applies to.
+`/checkout` exactly as `forceRedirectUrl` already does for `/admin`.
+
+This gate used to live in `src/proxy.ts` instead, matched by path. It moved
+into each layout because Clerk deprecated `createRouteMatcher` +
+`auth.protect()` in the proxy/middleware layer — a path-matching gate can
+diverge from how Next.js actually routes a request. See
+[`admin-access-control.md`](./admin-access-control.md) for the full reasoning;
+`/checkout` and `/account` now follow the same shape `/admin` does, just
+without a second, role-based gate.
 
 **Every page under these routes also calls `getCurrentUser()` itself**, and
-`placeOrderAction` does too. That is not redundant with the proxy gate — see
-[`admin-access-control.md`](./admin-access-control.md)'s "Gate 1 / Gate 2"
-reasoning, restated for this feature: the proxy protects the *page render*,
-but a Server Action is a POST endpoint, and relying on a broad path-based
-matcher to have covered every way an action could be invoked is the wrong
-kind of confidence to have about a write. `placeOrderAction` re-checks the
-same way `save-product.ts` re-checks `isAdmin()`.
+`placeOrderAction` does too. That is not redundant with the layout's
+`auth.protect()` — see [`admin-access-control.md`](./admin-access-control.md)'s
+"Gate 1 / Gate 2" reasoning, restated for this feature: the layout protects
+the *page render*, but a Server Action is a POST endpoint that never renders
+it, so relying on the layout to have covered every way an action could be
+invoked is the wrong kind of confidence to have about a write.
+`placeOrderAction` re-checks the same way `save-product.ts` re-checks
+`isAdmin()`.
 
 ---
 
@@ -357,7 +364,7 @@ number blank — renders without it, exactly like the six columns before it.
 | `src/components/shared/order-summary.tsx` | Server — one order's line items; moved here from `components/admin/orders/` |
 | `src/app/admin/orders/[id]/page.tsx` | Renders `shippingPhone2` and the five-field address when present |
 | `prisma/schema.prisma` | `Order.shippingPhone2`; `Order.shippingGovernorate`/`shippingCity`/`shippingCenter`/`shippingStreet`/`shippingBuilding` (replacing the earlier `shippingLine1`/`shippingLine2` pair) |
-| `src/proxy.ts` | `/checkout(.*)` added to the protected-route matcher |
+| `src/app/checkout/layout.tsx` | `auth.protect()` — the session gate for `/checkout(.*)` |
 | `src/constants/routes.ts` | `ROUTES.checkout`, `accountOrderRoute(id)` |
 
 ---

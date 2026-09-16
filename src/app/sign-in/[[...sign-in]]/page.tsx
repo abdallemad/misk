@@ -11,8 +11,8 @@ export const metadata = { title: "تسجيل الدخول" }
  * component owns sub-routes like `/sign-in/factor-two` and needs them to
  * resolve to this same page.
  *
- * `forceRedirectUrl` is the important part. When `proxy.ts` bounces a
- * signed-out visitor off `/admin`, Clerk arrives here with
+ * `forceRedirectUrl` is the important part. When `admin/layout.tsx`'s
+ * `auth.protect()` bounces a signed-out visitor off `/admin`, Clerk arrives here with
  * `?redirect_url=http://localhost:3000/admin` and would otherwise send them
  * straight back there after sign-in — skipping `/auth-callback`, and so
  * skipping the database sync. Forcing the callback URL puts the sync back in

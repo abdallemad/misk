@@ -1,3 +1,4 @@
+import { auth } from "@clerk/nextjs/server"
 import type { Metadata } from "next"
 import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
@@ -22,21 +23,24 @@ export const metadata: Metadata = {
 /**
  * `/admin` — the console shell, and the gate in front of it.
  *
- * Two independent checks stand between the public and this tree:
+ * Two independent checks stand between the public and this tree, both here
+ * rather than split with `proxy.ts` — see that file for why a path-matching
+ * gate at the proxy layer is deprecated:
  *
- *   1. `proxy.ts` requires a session for `/admin(.*)`, so a signed-out
- *      visitor is bounced to sign-in before any of this renders.
- *   2. This layout requires that session to be an admin.
+ *   1. `auth.protect()` requires a session, bouncing a signed-out visitor to
+ *      sign-in before any of this renders.
+ *   2. `isAdmin()` requires that session to be an admin.
  *
- * The role check lives here rather than in the proxy because a layout can
- * read it cheaply and, more importantly, because every nested admin route
- * renders *inside* this layout — so there is no `/admin/*` page that can be
- * added later and forget to protect itself.
+ * Both live in this layout because every nested admin route renders *inside*
+ * it — so there is no `/admin/*` page that can be added later and forget to
+ * protect itself.
  *
- * `notFound()` rather than a redirect or a 403: a non-admin should not learn
- * that `/admin` exists. See docs/admin-access-control.md.
+ * `notFound()` rather than a redirect or a 403 for the role check: a
+ * non-admin should not learn that `/admin` exists. See
+ * docs/admin-access-control.md.
  */
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
+  await auth.protect()
   if (!(await isAdmin())) notFound()
 
   // The rail's open/closed state is persisted in a cookie by the sidebar's

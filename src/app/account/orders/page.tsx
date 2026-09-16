@@ -16,9 +16,9 @@ export const metadata = { title: "طلباتي" }
  * `customer.service.getCustomer` already makes for this exact table on the
  * admin side.
  *
- * `getCurrentUser()` rather than trusting the proxy alone — a defensive
- * second check, same reasoning as `/checkout`. See
- * docs/checkout-orders-feature.md.
+ * `getCurrentUser()` rather than trusting `account/layout.tsx`'s
+ * `auth.protect()` alone — a defensive second check, same reasoning as
+ * `/checkout`. See docs/checkout-orders-feature.md.
  */
 export default async function AccountOrdersPage() {
   const user = await getCurrentUser()

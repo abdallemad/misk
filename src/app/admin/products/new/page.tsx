@@ -55,7 +55,11 @@ export default async function NewProductPage() {
               فئة بعد.
             </EmptyDescription>
           </EmptyHeader>
-          <Button variant="gold" render={<Link href={ROUTES.adminCategories} />}>
+          <Button
+            variant="gold"
+            nativeButton={false}
+            render={<Link href={ROUTES.adminCategories} />}
+          >
             إدارة الفئات
           </Button>
         </Empty>

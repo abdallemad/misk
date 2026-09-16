@@ -65,7 +65,11 @@ export default async function AdminProductsPage(
         title="العطور"
         description="إضافة وتعديل العطور وأحجامها وأسعارها."
         actions={
-          <Button variant="gold" render={<Link href={ROUTES.adminProductNew} />}>
+          <Button
+            variant="gold"
+            nativeButton={false}
+            render={<Link href={ROUTES.adminProductNew} />}
+          >
             <PlusIcon aria-hidden="true" />
             عطر جديد
           </Button>

@@ -21,7 +21,10 @@ declare global {
    * `{"metadata": "{{user.public_metadata}}"}` in the Clerk dashboard
    * (Configure → Sessions → Customize session token). The admin guard does
    * not depend on it — see docs/admin-access-control.md — but when it is
-   * configured, `proxy.ts` can reject non-admins without an API round trip.
+   * configured, `proxy.ts` could read it for a cheap early redirect without
+   * an API round trip. That would only ever be a performance shortcut,
+   * never the security boundary: `auth.protect()` and `isAdmin()` in
+   * `admin/layout.tsx` are what actually decide access.
    */
   interface CustomJwtSessionClaims {
     metadata?: {

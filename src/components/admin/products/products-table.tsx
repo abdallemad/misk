@@ -83,7 +83,11 @@ export function ProductsTable({ products, filtered = false }: ProductsTableProps
           </EmptyDescription>
         </EmptyHeader>
         {filtered ? null : (
-          <Button variant="gold" render={<Link href={ROUTES.adminProductNew} />}>
+          <Button
+            variant="gold"
+            nativeButton={false}
+            render={<Link href={ROUTES.adminProductNew} />}
+          >
             <PlusIcon aria-hidden="true" />
             أضف أول عطر
           </Button>
@@ -198,6 +202,7 @@ export function ProductsTable({ products, filtered = false }: ProductsTableProps
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          nativeButton={false}
                           render={<Link href={adminProductRoute(product.id)} />}
                         />
                       }

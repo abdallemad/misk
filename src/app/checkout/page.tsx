@@ -12,13 +12,12 @@ export const metadata = { title: "إتمام الطلب" }
  * `/checkout` — the information collector between `/cart` and a placed
  * order: phone numbers and address, then "تأكيد الطلب".
  *
- * Behind the proxy's session gate (`proxy.ts` now protects `/checkout(.*)`
- * the same way it protects `/admin` and `/account`) — an `Order` needs a
- * `User` row, and `syncCurrentUser()` only ever runs on `/auth-callback`. The
+ * Behind `checkout/layout.tsx`'s `auth.protect()` — an `Order` needs a `User`
+ * row, and `syncCurrentUser()` only ever runs on `/auth-callback`. The
  * `getCurrentUser()` check here is a defensive second layer, the same
  * belt-and-braces `placeOrderAction` repeats for the write itself; it should
- * never actually fire given the proxy, and falls back to `/sign-in` if it
- * somehow does.
+ * never actually fire given the layout guard, and falls back to `/sign-in`
+ * if it somehow does.
  *
  * An empty cart has nothing to check out, so it redirects to `/cart` rather
  * than rendering a form with nothing above it.

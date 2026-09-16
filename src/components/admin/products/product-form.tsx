@@ -442,7 +442,11 @@ export function ProductForm({
         {/* An anchor, so neither `type` nor `disabled` would do anything on
             it — and leaving during a save is what "cancel" means anyway.
             Deliberately outside the fieldset above for the same reason. */}
-        <Button variant="outline" render={<Link href={ROUTES.adminProducts} />}>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link href={ROUTES.adminProducts} />}
+        >
           إلغاء
         </Button>
         <Button type="submit" variant="gold" disabled={pending}>
