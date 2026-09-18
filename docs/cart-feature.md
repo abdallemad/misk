@@ -140,32 +140,29 @@ React Query would earn its place the day the cart needs true optimistic
 rendering — the row appearing before the server confirms it — which a small,
 fast cookie write does not yet justify.
 
-### «اشترِ الآن» — live on the product page, still disabled on a card
+### «اشترِ الآن» — live everywhere now
 
 Both buttons exist on the product page (`AddToCartForm`) and on every
 catalogue card (`StoreCardActions`), matching the earlier round that put them
-there. This round wired up the product page's copy; the card's stays
-disabled:
+there. Both are live on both:
 
 | Button | Where | State | Why |
 | --- | --- | --- | --- |
 | «أضف إلى السلة» | both | live | Calls `addToCartAction`; the cart is what this feature builds |
-| «اشترِ الآن» | `AddToCartForm` | **live** | Adds the selected variant + quantity (the identical `addToCartAction` call) and, on success, pushes to `/checkout` — see below |
-| «اشترِ الآن» | `StoreCardActions` | **disabled, unconditionally** | The card has no picker — quick-adding `defaultVariantId` and jumping straight to `/checkout` would skip the one screen where a shopper can still change their mind about size. `AddToCartForm` doesn't have this problem: a shopper who presses its «اشترِ الآن» has already picked a size from the buttons right above it |
+| «اشترِ الآن» | `AddToCartForm` | live | Adds the selected variant + quantity (the identical `addToCartAction` call) and, on success, pushes to `/checkout` — see below |
+| «اشترِ الآن» | `StoreCardActions` | live | Adds `defaultVariantId` (one unit, the identical `addToCartAction` call) and, on success, pushes to `/checkout` — same tradeoff «أضف إلى السلة» already made on a card: it acts on the obvious (cheapest in-stock) option rather than opening a picker |
 
 **Independent `pending` flags, not a shared one — on both forms.**
-`disabled` used to be a literal `true` on `AddToCartForm`'s «اشترِ الآن»
-(nothing to wire it to, since nothing existed to lead to), and that was
-itself a fix: an earlier version disabled *both* buttons off the same
-`pending` flag, which meant clicking «أضف إلى السلة» also flashed a loading
-spinner on «اشترِ الآن» — a button that had not been pressed and was not
-doing anything. Now that «اشترِ الآن» has its own real transition
-(`startBuyNowTransition`), the same rule still applies in the other
-direction: each button spins only from its *own* transition
-(`pending` / `buyNowPending`), though both are disabled while either is in
-flight, to stop a double-click firing two overlapping cart writes.
-`StoreCardActions`'s «اشترِ الآن» keeps the old literal `disabled` — there is
-still nothing to wire it to.
+`disabled` used to be a literal `true` on both forms' «اشترِ الآن» buttons
+(nothing to wire them to, since nothing existed to lead to), and wiring
+`AddToCartForm`'s copy up was itself a fix: an earlier version disabled
+*both* buttons off the same `pending` flag, which meant clicking «أضف إلى
+السلة» also flashed a loading spinner on «اشترِ الآن» — a button that had not
+been pressed and was not doing anything. Both forms now give «اشترِ الآن» its
+own real transition (`startBuyNowTransition`), so each button spins only from
+its *own* transition (`pending` / `buyNowPending`), though both are disabled
+while either is in flight, to stop a double-click firing two overlapping
+cart writes.
 
 ### The card can only quick-add one variant
 
@@ -326,9 +323,7 @@ explicitly cart-only, and `/cart`'s confirm button was a disabled placeholder
 for it. It is a live `<Link>` to `/checkout` today —
 [`checkout-orders-feature.md`](./checkout-orders-feature.md) is the follow-up
 round that built the information collector, `createOrder`, and
-`/account/orders`. **«اشترِ الآن» is wired up on the product page now** — see
-above — but stays disabled on a catalogue card on purpose, for the
-size-picker reason given there.
+`/account/orders`. **«اشترِ الآن» is wired up everywhere now** — see above.
 
 **Signed-in cart persistence / merge-on-sign-in.** A cookie cart is identical
 whether or not the shopper is signed in; nothing here reads `getCurrentUser()`.
@@ -343,17 +338,6 @@ past one browser's cookies — see the `Cart` table discussion above.
 ---
 
 ## Extending this
-
-**Wiring up the catalogue card's «اشترِ الآن».** `AddToCartForm`'s copy is
-done (see above). The card's is a different, and harder, question: it has no
-picker, so quick-adding `defaultVariantId` and jumping straight into
-`/checkout` would skip the one screen where a shopper can still change their
-mind about size — `/cart` and the product page's buttons exist to give them
-that. Wiring it up means deciding what it should actually *do* first
-(jump to `/checkout` with just that one line and accept the size is fixed?
-open the picker inline instead of navigating?), not just copying
-`AddToCartForm`'s answer. `StoreCardActions` already isolates its disabled
-state to that one button, so whichever answer wins is a local change there.
 
 **A cart-drawer instead of a full page.** `storefront-layout.md` (still
 unbuilt) sketches one. `CartContent` is already a plain function of a

@@ -367,8 +367,8 @@ already sat flush against with no margin of its own.
 
 `store-product-card.tsx` shows the cover image, the category + type eyebrow,
 the name, a two-line description clamp, the "from" price, a stock badge, and —
-in a footer — `StoreCardActions`: a quick-add «أضف إلى السلة» plus a
-permanently disabled «اشترِ الآن». See
+in a footer — `StoreCardActions`: a quick-add «أضف إلى السلة» plus a live
+«اشترِ الآن» that adds the same default variant and pushes to `/checkout`. See
 [`cart-feature.md`](./cart-feature.md).
 
 **Everything above the footer is one `<Link>` to `/store/[slug]`; the buttons
@@ -450,12 +450,13 @@ A quantity stepper follows, capped at `min(selected.stock, MAX_LINE_QUANTITY)`.
 Both add the selected variant + quantity to the cart. «أضف إلى السلة» stops
 there (a toast). «اشترِ الآن», on success, pushes to `/checkout` — a shopper
 who buy-nows from here has already picked a size from the buttons right
-above it, so skipping straight past `/cart` loses nothing. See
+above it, so skipping straight past `/cart` loses nothing. The catalogue
+card's own «اشترِ الآن» (`StoreCardActions`) does the same thing with its one
+default variant instead of a picked one. See
 [`cart-feature.md`](./cart-feature.md) for the full reasoning, including why
-the catalogue card's own «اشترِ الآن» stays disabled (no picker there to
-have already committed to a size) and why each button owns its **own**
-`pending` flag rather than sharing one (an earlier version's shared flag made
-*both* buttons flash a spinner when only one was pressed).
+each button owns its **own** `pending` flag rather than sharing one (an
+earlier version's shared flag made *both* buttons flash a spinner when only
+one was pressed).
 
 ### The gallery
 

@@ -184,15 +184,11 @@ WhatsApp, Instagram, Facebook, email, phone — five cards, each a `<Link>`
 (external ones get `target="_blank" rel="noopener noreferrer"`), reading
 their values from `constants/contact.ts` rather than being typed inline.
 
-**Every value in `constants/contact.ts` is a placeholder.** مِسك is a
-fictional demo brand (`misk_business_analysis.md`'s own closing line calls it
-"a foundational business/product analysis" — there is no real shop behind
-it), so the phone/WhatsApp number matches the Egyptian mobile format this
-project already assumes everywhere else (`checkout.schema.ts`'s
-`PHONE_PATTERN`, `scripts/seed-dev.mts`'s seeded customers), and the email
-uses the `.example` TLD — reserved by RFC 2606 specifically so a domain
-like it can never resolve to a real inbox. Swap every value here for the
-shop's real accounts before any of this ships for real.
+**`constants/contact.ts` holds the shop's real channels** — WhatsApp/phone,
+Instagram, Facebook, email. The phone/WhatsApp number is in the same
+Egyptian mobile format this project already assumes everywhere else
+(`checkout.schema.ts`'s `PHONE_PATTERN`, `scripts/seed-dev.mts`'s seeded
+customers).
 
 **No Facebook or Instagram icon from `lucide-react`.** The package dropped
 brand icons some versions back to stay a generic set. `components/shared/
@@ -257,7 +253,7 @@ second nav component would only be indirection for two `<li>`s.
 | `src/components/shared/social-icons.tsx` | `FacebookIcon` / `InstagramIcon` — lucide has no brand icons for either |
 | `src/services/catalog.service.ts` | `listCatalog({ sort: "newest" })` — the read `/`'s "latest" section and the search box both rely on |
 | `src/constants/design-system.ts` | `CATEGORY_ACCENT` — the category strip's hard-coded copy and colour |
-| `src/constants/contact.ts` | `CONTACT` — every placeholder value `/contact` renders |
+| `src/constants/contact.ts` | `CONTACT` — the shop's real contact channels `/contact` renders |
 | `src/constants/routes.ts` | `ROUTES.about`, `ROUTES.contact` |
 
 ---
@@ -270,9 +266,6 @@ second nav component would only be indirection for two `<li>`s.
 **A relevance-ranked `/search`.** The hero's search box reuses `/store`'s
 existing `contains` search; a real ranked-search page is `search-feature.md`,
 a separate, still-unbuilt feature under the sketched `(shop)` group.
-
-**Real contact details.** Every value in `constants/contact.ts` is a
-placeholder — see "`/contact` — every channel, one card each" above.
 
 ---
 
@@ -287,7 +280,3 @@ an admin toggle next to `isActive` in the product form, and swap `Latest`'s
 rare event, swap `CategoryStrip`'s hard-coded array for
 `listCatalogCategories()` — `StoreHeader` and `/store` already show the
 shape that read takes.
-
-**Real contact details, once there is a real shop behind them.** Edit
-`constants/contact.ts` — nothing else changes; `/contact`'s cards render
-whatever the constant says.

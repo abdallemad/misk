@@ -1,22 +1,14 @@
 /**
  * The business's own contact channels — `/contact` and the footer link to
- * it. مِسك is a fictional demo brand (see docs/misk_business_analysis.md),
- * so every value below is a placeholder: an Egyptian mobile format matching
- * the one `scripts/seed-dev.mts` and `checkout.schema.ts`'s `PHONE_PATTERN`
- * already assume, and an `.example` email domain (reserved for exactly this
- * by RFC 2606 — it can never resolve to a real inbox). Swap these for the
- * shop's real accounts before this ever ships.
- *
- * One WhatsApp number doubles as the phone number — a small shop with one
- * owner answering both, which is exactly what
- * docs/misk_business_analysis.md describes.
+ * it. One WhatsApp number doubles as the phone number — a small shop with
+ * one owner answering both.
  */
 export const CONTACT = {
-  phone: "+201001234567",
-  whatsappHref: "https://wa.me/201001234567",
-  instagramHandle: "misk.perfumes",
-  instagramHref: "https://instagram.com/misk.perfumes",
+  phone: "+201556921503",
+  whatsappHref: "https://wa.me/201556921503",
+  instagramHandle: "mesk1.eg",
+  instagramHref: "https://www.instagram.com/mesk1.eg?stkn=MTRnZzg2YXJ1OHh4dQ==",
   facebookHandle: "مِسك للعطور",
-  facebookHref: "https://facebook.com/miskperfumes",
-  email: "hello@misk.example",
+  facebookHref: "https://www.facebook.com/share/18z1gCnQaK/",
+  email: "brandmesk@gmail.com",
 } as const
