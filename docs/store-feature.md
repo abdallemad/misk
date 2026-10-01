@@ -90,6 +90,8 @@ surfaces.
         │
         ↓
   services/catalog.service.ts  listCatalog() · listCatalogCategories() · getStoreProduct()
+                               (+ listSegmentCategories() · listBestSellers() ·
+                                getFormatPriceFloors() — the landing page's reads)
         │
         └──→ lib/db.ts         Prisma
 ```
@@ -164,6 +166,31 @@ The chips: `isActive` segments that have at least one sellable perfume, in
 storefront order (`position` then `name`), each with a filtered `_count`. A
 segment whose every perfume is hidden or variant-less is left out — a chip
 that leads to an empty grid is a dead end.
+
+### The landing page's three reads
+
+`/` reads the same catalogue through three more functions here, so the
+landing page never needs a service of its own (see
+[`landing-page.md`](./landing-page.md)):
+
+- **`listSegmentCategories()`** — the same set, order and gate as
+  `listCatalogCategories()`, plus `description`, `imageUrl` and the four
+  `segment*` card columns. A separate read so the header's client-side nav,
+  which serialises `listCatalogCategories()` on every page, does not carry
+  landing copy it never renders.
+- **`listBestSellers(limit)`** — every sellable card, ranked by units ordered
+  (summed from `OrderItem` across non-cancelled orders, variant → perfume),
+  then newest; returns `ranked: true` only when the top card has real orders,
+  so the page knows whether it may say «الأكثر طلبًا».
+- **`getFormatPriceFloors()`** — the cheapest active variant per product type,
+  `null` for a line with nothing on sale.
+
+`listCatalog` and `listBestSellers` build their cards through one private
+`loadCards(where)` — the `findMany` + card mapping that used to be inline in
+`listCatalog` — so a card on `/` and a card on `/store` cannot drift apart.
+The two "sellable" gates are private constants beside it
+(`SELLABLE_IN_CATEGORY` for a category's `_count`, `SELLABLE_PRODUCT` for the
+whole catalogue).
 
 ### `getStoreProduct(slug)`
 
@@ -506,7 +533,7 @@ than writing `?sort=newest`, so the canonical catalogue URL stays clean.
 | `…/store-product-gallery.tsx` | Client — main image + thumbnail swap |
 | `…/add-to-cart-form.tsx` | Client — the product page's buy box; see `cart-feature.md` |
 | `…/store-card-actions.tsx` | Client — the catalogue card's quick-add; see `cart-feature.md` |
-| `src/services/catalog.service.ts` | `listCatalog` + `listCatalogCategories` + `getStoreProduct`; `StoreProductCard.defaultVariantId` |
+| `src/services/catalog.service.ts` | `listCatalog` + `listCatalogCategories` + `getStoreProduct`; `StoreProductCard.defaultVariantId`; the landing page's `listSegmentCategories` / `listBestSellers` / `getFormatPriceFloors` |
 | `src/constants/store.ts` | `STORE_SORTS`, `STORE_SORT_LABEL`, `DEFAULT_STORE_SORT` — client-safe |
 | `src/components/shared/pagination.tsx` | The shared `<Pagination>` (new) |
 | `src/components/shared/use-list-navigation.ts` | `useListNavigation`, moved here from `admin/shared` |

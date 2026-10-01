@@ -130,6 +130,10 @@ export async function createCategory(
         imageUrl,
         isActive: input.isActive,
         position: input.position ?? (await nextPosition()),
+        segmentHeadline: input.segmentHeadline,
+        segmentDescription: input.segmentDescription,
+        segmentCtaLabel: input.segmentCtaLabel,
+        segmentIconOrImage: input.segmentIconOrImage,
       },
     })
 
@@ -185,6 +189,10 @@ export async function updateCategory(
         imageUrl,
         isActive: input.isActive,
         position: input.position ?? existing.position,
+        segmentHeadline: input.segmentHeadline,
+        segmentDescription: input.segmentDescription,
+        segmentCtaLabel: input.segmentCtaLabel,
+        segmentIconOrImage: input.segmentIconOrImage,
       },
     })
 

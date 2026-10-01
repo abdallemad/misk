@@ -3,14 +3,12 @@ import Link from "next/link"
 import { BrandLockup } from "@/components/shared/brand-lockup"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { CATEGORY_ACCENT, type CategorySlug } from "@/constants/design-system"
 import { ROUTES } from "@/constants/routes"
-
-const CATEGORIES: CategorySlug[] = ["youth", "women", "men"]
+import { listCatalogCategories } from "@/services/catalog.service"
 
 /** The built catalogue lives at `/store`; `/store?category=<slug>` filters it. */
-const storeCategoryHref = (slug: CategorySlug) =>
-  `${ROUTES.store}?category=${slug}`
+const storeCategoryHref = (slug: string) =>
+  `${ROUTES.store}?category=${encodeURIComponent(slug)}`
 
 /**
  * The marketing footer — shared by `/`, `/about` and `/contact`, the first
@@ -25,23 +23,28 @@ const storeCategoryHref = (slug: CategorySlug) =>
  * the category links, «حكايتنا» and «تواصل معنا» live for anyone who
  * scrolled instead of using the header.
  *
- * `CATEGORIES` stays hard-coded, the same call `CategoryStrip` on `/` makes
- * and for the identical reason — Youth / Women / Men are the shop's founding
- * segments (docs/categories-feature.md), not rows to fetch.
+ * The category links are **read from the database** — the same
+ * `listCatalogCategories()` the header's «المتجر» dropdown uses (active, with
+ * at least one sellable perfume, in `position` order) — so a category added
+ * or retired in `/admin/categories` shows up or disappears here with no code
+ * edit. They used to be a hard-coded Youth / Women / Men list; see
+ * docs/landing-page.md, "Categories are data now".
  */
-export function SiteFooter() {
+export async function SiteFooter() {
+  const categories = await listCatalogCategories()
+
   return (
     <footer className="mx-auto w-full max-w-page px-6 py-14">
       <div className="flex flex-wrap items-start justify-between gap-8">
         <BrandLockup tagline="دار عطور" />
         <nav className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
-          {CATEGORIES.map((slug) => (
+          {categories.map((category) => (
             <Link
-              key={slug}
-              href={storeCategoryHref(slug)}
+              key={category.id}
+              href={storeCategoryHref(category.slug)}
               className="text-muted-foreground transition-colors hover:text-foreground"
             >
-              {CATEGORY_ACCENT[slug].label}
+              {category.name}
             </Link>
           ))}
           <Link

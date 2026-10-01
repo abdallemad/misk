@@ -6,6 +6,11 @@ import {
   MAX_IMAGE_BYTES,
   MAX_IMAGE_MB,
 } from "@/constants/uploads"
+import {
+  isSegmentIconKey,
+  isSegmentImageSrc,
+  SEGMENT_ICON_KEYS,
+} from "@/constants/landing"
 import { SLUG_PATTERN, SLUG_RULE_MESSAGE } from "@/utils/slug"
 
 /**
@@ -35,6 +40,11 @@ import { SLUG_PATTERN, SLUG_RULE_MESSAGE } from "@/utils/slug"
 export const NAME_MAX = 40
 export const SLUG_MAX = 40
 export const DESCRIPTION_MAX = 200
+/** Landing-page card copy — docs/landing-page.md, "The category selector". */
+export const SEGMENT_HEADLINE_MAX = 80
+export const SEGMENT_DESCRIPTION_MAX = 200
+export const SEGMENT_CTA_MAX = 30
+export const SEGMENT_MEDIA_MAX = 300
 
 const name = z
   .string()
@@ -54,6 +64,29 @@ const description = z
   .string()
   .trim()
   .max(DESCRIPTION_MAX, `الوصف طويل — ${DESCRIPTION_MAX} حرفًا كحد أقصى.`)
+  .nullable()
+
+/** An optional line of card copy — empty means "use the fallback". */
+const segmentText = (max: number, label: string) =>
+  z
+    .string()
+    .trim()
+    .max(max, `${label} طويل — ${max} حرفًا كحد أقصى.`)
+    .nullable()
+
+/**
+ * An icon key, a public path, or one of our Cloudinary URLs — the only
+ * things the landing card can render (`next.config.ts` allows no other
+ * remote image host, and `next/image` throws on one it does not allow).
+ */
+const segmentIconOrImage = z
+  .string()
+  .trim()
+  .max(SEGMENT_MEDIA_MAX, `القيمة طويلة — ${SEGMENT_MEDIA_MAX} حرفًا كحد أقصى.`)
+  .refine(
+    (value) => isSegmentIconKey(value) || isSegmentImageSrc(value),
+    `اكتب اسم أيقونة (${SEGMENT_ICON_KEYS.join("، ")}) أو رابط صورة يبدأ بـ / أو https://res.cloudinary.com/.`
+  )
   .nullable()
 
 /**
@@ -88,6 +121,10 @@ export const categoryFormSchema = z.object({
   image,
   /** Ticked "remove the current image" — only meaningful when editing. */
   removeImage: z.boolean(),
+  segmentHeadline: segmentText(SEGMENT_HEADLINE_MAX, "العنوان"),
+  segmentDescription: segmentText(SEGMENT_DESCRIPTION_MAX, "الوصف"),
+  segmentCtaLabel: segmentText(SEGMENT_CTA_MAX, "نص الزر"),
+  segmentIconOrImage,
 })
 
 export type CategoryFormInput = z.infer<typeof categoryFormSchema>
@@ -132,6 +169,9 @@ export function parseCategoryForm(
 
   const file = formData.get("image")
   const positionRaw = text("position").trim()
+  // Optional copy: an empty box clears the column (→ the card's fallback).
+  const optional = (key: string) =>
+    text(key).trim() === "" ? null : text(key)
 
   const result = categoryFormSchema.safeParse({
     name: text("name"),
@@ -141,6 +181,10 @@ export function parseCategoryForm(
     isActive: formData.get("isActive") !== null,
     image: file instanceof File && file.size > 0 ? file : null,
     removeImage: formData.get("removeImage") !== null,
+    segmentHeadline: optional("segmentHeadline"),
+    segmentDescription: optional("segmentDescription"),
+    segmentCtaLabel: optional("segmentCtaLabel"),
+    segmentIconOrImage: optional("segmentIconOrImage"),
   })
 
   if (result.success) return { success: true, data: result.data }

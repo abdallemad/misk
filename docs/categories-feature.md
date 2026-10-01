@@ -10,6 +10,7 @@ Admin CRUD for the audience segments a shopper browses by — شبابي / نس�
 - [`admin-access-control.md`](./admin-access-control.md) — why every action re-checks `isAdmin()`
 - [`image-uploads.md`](./image-uploads.md) — where the category image goes now (Cloudinary)
 - [`misk_business_analysis.md`](./misk_business_analysis.md) — section 3, the segments themselves
+- [`landing-page.md`](./landing-page.md) — the landing page's category selector, which renders one card per category from the `segment*` columns below
 
 ---
 
@@ -67,6 +68,12 @@ model Category {
   isActive    Boolean  @default(true)
   position    Int      @default(0)
 
+  // the landing page's card for this category — all optional
+  segmentHeadline    String?
+  segmentDescription String?
+  segmentCtaLabel    String?
+  segmentIconOrImage String?
+
   products    Product[]
 
   @@index([isActive, position])
@@ -104,6 +111,15 @@ the field blank on create means "append": the service resolves it to
 `max(position) + 1` rather than `0`, which would otherwise send every new
 segment to the front of the nav.
 
+**The four `segment*` columns are the landing page's card copy.** `/`
+renders one card per active category with something to buy, and these hold
+its headline, its line of description, its button text, and an icon key or
+image. All four are nullable and all four fall back — to `name`,
+`description`, «تسوّق <name>» and `imageUrl` — so a brand-new category gets a
+complete card with none of them filled in. They are edited in the same
+dialog, under «بطاقة الصفحة الرئيسية»; the full fallback table and the
+icon-or-image rule are in [`landing-page.md`](./landing-page.md).
+
 ### `onDelete: Restrict`, deliberately
 
 Deleting a segment must never take a shelf of perfumes with it. `Restrict`
@@ -112,7 +128,19 @@ gets *"12 perfumes still use this one"* instead of a foreign-key violation.
 
 ### Applying the change
 
-The project has no `prisma/migrations/` — the schema was created with
+> **The project has migrations now.** Everything up to and including this
+> enum-to-table change was applied with `prisma db push`, and the paragraph
+> below describes that era. On 2026-09-30 the live schema was captured as a
+> baseline — `prisma/migrations/0_init`, generated with `prisma migrate diff`
+> against a database confirmed drift-free and marked applied with
+> `prisma migrate resolve --applied 0_init` — and the `segment*` columns
+> went in as the first real migration,
+> `20260930120000_category_segment_copy` (four `ADD COLUMN … TEXT`, no data
+> touched). From here on, a schema change is `npx prisma migrate dev --name
+> <change>` locally and `npx prisma migrate deploy` against the live
+> database, not `db push`.
+
+At the time, the project had no `prisma/migrations/` — the schema was created with
 `prisma db push`, and this change was applied the same way, so the two stay
 consistent. `Product` had zero rows at the time, so dropping the enum column
 in favour of `categoryId` cost nothing. **On a database with products, this
@@ -128,7 +156,17 @@ npm run seed-categories
 
 Idempotent — it upserts on `slug` with an empty `update`, so running it twice
 changes nothing and running it against a live database will not overwrite a
-name an admin has edited or an image they have uploaded.
+name an admin has edited or an image they have uploaded. The one thing it
+does write to an existing row is **segment copy, and only into columns that
+are still `null`** — never the icon on a category that already has a photo —
+so it can back-fill the landing cards without clobbering an admin's rewrite.
+
+> **Against the live database it also re-creates any founding segment the
+> admin has deleted** — that is what "put them back" means. The live shop
+> retired «رجالي», and running this script re-created it (with no perfumes,
+> so the storefront never shows it). Delete the row again in
+> `/admin/categories` if that happens, or don't run the script against a
+> database whose founding set was changed on purpose.
 
 ---
 
@@ -360,6 +398,7 @@ guard doing its job.
 | File | What it is |
 | --- | --- |
 | `prisma/schema.prisma` | `Category` model; `Product.categoryId` |
+| `prisma/migrations/20260930120000_category_segment_copy/` | The four `segment*` columns |
 | `src/app/admin/categories/page.tsx` | The page — Server Component, reads the service |
 | `src/components/admin/categories/index.ts` | Barrel — exports the two entry points only |
 | `…/categories-table.tsx` | The table, and the dialogs it drives |
@@ -369,13 +408,13 @@ guard doing its job.
 | `…/delete-category-dialog.tsx` | Confirm-and-delete — `useTransition` |
 | `src/actions/category/save-category.ts` | Create or update |
 | `src/actions/category/delete-category.ts` | Delete |
-| `src/schemas/category.schema.ts` | Zod rules, FormData adapter, form-state type |
+| `src/schemas/category.schema.ts` | Zod rules (incl. the `segment*` fields — an icon key or an allowed image source only), FormData adapter, form-state type |
 | `src/services/category.service.ts` | Every rule about categories |
 | `src/lib/uploads.ts` | Sniff bytes → `saveImage` / `deleteImage` — `server-only` |
 | `src/lib/cloudinary.ts` | The signed Cloudinary calls — `server-only`; `image-uploads.md` |
 | `src/constants/uploads.ts` | The limits + `DEFAULT_PRODUCT_IMAGE`, shared with the client |
 | `src/utils/slug.ts` | The URL-segment rule, shared with products |
-| `scripts/seed-categories.mts` | The three founding segments |
+| `scripts/seed-categories.mts` | The three founding segments, and their landing-card copy |
 
 ### Why the form is one component and one action
 

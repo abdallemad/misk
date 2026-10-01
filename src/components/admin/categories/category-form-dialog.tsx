@@ -22,16 +22,24 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
   FieldTitle,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { SEGMENT_ICON_KEYS } from "@/constants/landing"
 import {
   DESCRIPTION_MAX,
   IDLE_CATEGORY_FORM_STATE,
   NAME_MAX,
+  SEGMENT_CTA_MAX,
+  SEGMENT_DESCRIPTION_MAX,
+  SEGMENT_HEADLINE_MAX,
+  SEGMENT_MEDIA_MAX,
   SLUG_MAX,
 } from "@/schemas/category.schema"
 import type { CategoryRow } from "@/services/category.service"
@@ -238,6 +246,100 @@ export function CategoryFormDialog({
                   defaultChecked={category?.isActive ?? true}
                 />
               </Field>
+
+              <FieldSeparator />
+
+              {/* The landing page's card for this category — every field is
+                  optional; an empty one falls back to the name / description
+                  above. See docs/landing-page.md, "The category selector". */}
+              <FieldSet>
+                <FieldLegend>بطاقة الصفحة الرئيسية</FieldLegend>
+                <FieldDescription>
+                  اختيارية كلها — لو سبتها فاضية، البطاقة بتستخدم الاسم والوصف.
+                </FieldDescription>
+
+                <FieldGroup className="gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="category-segment-headline">
+                      العنوان
+                    </FieldLabel>
+                    <Input
+                      id="category-segment-headline"
+                      name="segmentHeadline"
+                      defaultValue={category?.segmentHeadline ?? ""}
+                      maxLength={SEGMENT_HEADLINE_MAX}
+                      placeholder="ريحة منعشة لكل يوم"
+                      autoComplete="off"
+                      aria-invalid={Boolean(fieldErrors.segmentHeadline)}
+                    />
+                    {fieldErrors.segmentHeadline ? (
+                      <FieldError>{fieldErrors.segmentHeadline}</FieldError>
+                    ) : null}
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="category-segment-description">
+                      الوصف
+                    </FieldLabel>
+                    <Textarea
+                      id="category-segment-description"
+                      name="segmentDescription"
+                      defaultValue={category?.segmentDescription ?? ""}
+                      maxLength={SEGMENT_DESCRIPTION_MAX}
+                      rows={2}
+                      placeholder="حمضيات وبرغموت خفيفة، تنفع للجامعة والشغل."
+                      aria-invalid={Boolean(fieldErrors.segmentDescription)}
+                    />
+                    {fieldErrors.segmentDescription ? (
+                      <FieldError>{fieldErrors.segmentDescription}</FieldError>
+                    ) : null}
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="category-segment-cta">نص الزر</FieldLabel>
+                    <Input
+                      id="category-segment-cta"
+                      name="segmentCtaLabel"
+                      defaultValue={category?.segmentCtaLabel ?? ""}
+                      maxLength={SEGMENT_CTA_MAX}
+                      placeholder={`تسوّق ${category?.name || "الشبابي"}`}
+                      autoComplete="off"
+                      aria-invalid={Boolean(fieldErrors.segmentCtaLabel)}
+                    />
+                    {fieldErrors.segmentCtaLabel ? (
+                      <FieldError>{fieldErrors.segmentCtaLabel}</FieldError>
+                    ) : null}
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="category-segment-media">
+                      أيقونة أو صورة
+                    </FieldLabel>
+                    <Input
+                      id="category-segment-media"
+                      name="segmentIconOrImage"
+                      defaultValue={category?.segmentIconOrImage ?? ""}
+                      maxLength={SEGMENT_MEDIA_MAX}
+                      placeholder="sparkles"
+                      autoComplete="off"
+                      spellCheck={false}
+                      dir="ltr"
+                      className="font-mono text-start"
+                      aria-invalid={Boolean(fieldErrors.segmentIconOrImage)}
+                    />
+                    <FieldDescription>
+                      اسم أيقونة:{" "}
+                      <span dir="ltr" className="font-mono text-xs">
+                        {SEGMENT_ICON_KEYS.join(", ")}
+                      </span>{" "}
+                      — أو رابط صورة. لو فاضي، بتظهر صورة الفئة.
+                    </FieldDescription>
+                    {fieldErrors.segmentIconOrImage ? (
+                      <FieldError>{fieldErrors.segmentIconOrImage}</FieldError>
+                    ) : null}
+                  </Field>
+                </FieldGroup>
+              </FieldSet>
             </FieldGroup>
           </DialogBody>
 

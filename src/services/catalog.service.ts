@@ -73,6 +73,27 @@ export type StoreCategory = {
   productCount: number
 }
 
+/** One card in the landing page's category selector. */
+export type SegmentCategory = StoreCategory & {
+  description: string | null
+  imageUrl: string | null
+  segmentHeadline: string | null
+  segmentDescription: string | null
+  segmentCtaLabel: string | null
+  /** An icon key (`SEGMENT_ICON_KEYS`) or an image URL — see the schema. */
+  segmentIconOrImage: string | null
+}
+
+/** The landing page's product row, and which heading it has earned. */
+export type BestSellers = {
+  products: StoreProductCard[]
+  /**
+   * `true` when at least one perfume on the list has real, non-cancelled
+   * orders — only then may the section call itself «الأكثر طلبًا».
+   */
+  ranked: boolean
+}
+
 /** Every field optional; combined with AND. `sort` defaults to `newest`. */
 export type CatalogFilters = {
   search?: string
@@ -132,19 +153,14 @@ export type StoreProductDetail = {
  * variant, is left out — a chip that leads to an empty grid is a dead end.
  */
 export async function listCatalogCategories(): Promise<StoreCategory[]> {
-  const sellable: Prisma.ProductWhereInput = {
-    isActive: true,
-    variants: { some: { isActive: true } },
-  }
-
   const rows = await db.category.findMany({
-    where: { isActive: true, products: { some: sellable } },
+    where: { isActive: true, products: { some: SELLABLE_IN_CATEGORY } },
     orderBy: [{ position: "asc" }, { name: "asc" }],
     select: {
       id: true,
       name: true,
       slug: true,
-      _count: { select: { products: { where: sellable } } },
+      _count: { select: { products: { where: SELLABLE_IN_CATEGORY } } },
     },
   })
 
@@ -153,6 +169,42 @@ export async function listCatalogCategories(): Promise<StoreCategory[]> {
     name: row.name,
     slug: row.slug,
     productCount: row._count.products,
+  }))
+}
+
+/**
+ * The landing page's category selector — the same set, order and gate as
+ * `listCatalogCategories` (active, with at least one sellable perfume, so no
+ * card leads to an empty grid), plus the card copy.
+ *
+ * A separate read rather than widening `listCatalogCategories`, because that
+ * one is also serialised into the header's client-side nav on every
+ * storefront page, and four columns of landing-page copy would ride along
+ * for nobody. The `segment*` columns are returned raw — `null` means "not
+ * written yet", and the fallback to name / description / a generic line is
+ * the card's decision, not the query's. See docs/landing-page.md.
+ */
+export async function listSegmentCategories(): Promise<SegmentCategory[]> {
+  const rows = await db.category.findMany({
+    where: { isActive: true, products: { some: SELLABLE_IN_CATEGORY } },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      imageUrl: true,
+      segmentHeadline: true,
+      segmentDescription: true,
+      segmentCtaLabel: true,
+      segmentIconOrImage: true,
+      _count: { select: { products: { where: SELLABLE_IN_CATEGORY } } },
+    },
+  })
+
+  return rows.map(({ _count, ...row }) => ({
+    ...row,
+    productCount: _count.products,
   }))
 }
 
@@ -198,56 +250,7 @@ export async function listCatalog(
       : {}),
   }
 
-  const rows = await db.product.findMany({
-    where,
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      description: true,
-      productType: true,
-      createdAt: true,
-      category: { select: { name: true, slug: true } },
-      images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
-      variants: {
-        where: { isActive: true },
-        // Cheapest first, so the first in-stock row is the card's quick-add
-        // default — see `StoreProductCard.defaultVariantId`.
-        orderBy: { price: "asc" },
-        select: { id: true, price: true, stock: true },
-      },
-    },
-  })
-
-  const cards = rows.map((product) => {
-    const prices = product.variants.map((variant) => variant.price.toNumber())
-    // `null` (not "the first variant regardless of stock") when nothing on
-    // this card can actually be bought — the quick-add buttons disable then,
-    // rather than silently offering to add something with zero stock.
-    const defaultVariantId =
-      product.variants.find((variant) => variant.stock > 0)?.id ?? null
-
-    return {
-      card: {
-        id: product.id,
-        name: product.name,
-        slug: product.slug,
-        description: product.description,
-        category: product.category,
-        productType: product.productType,
-        coverImageUrl: product.images[0]?.url ?? null,
-        defaultVariantId,
-        priceFrom: prices.length > 0 ? Math.min(...prices) : null,
-        priceTo: prices.length > 0 ? Math.max(...prices) : null,
-        totalStock: product.variants.reduce(
-          (total, variant) => total + variant.stock,
-          0
-        ),
-        variantCount: product.variants.length,
-      } satisfies StoreProductCard,
-      createdAt: product.createdAt,
-    }
-  })
+  const cards = await loadCards(where)
 
   cards.sort((a, b) => {
     switch (sort) {
@@ -271,6 +274,93 @@ export async function listCatalog(
     total,
     page,
     pageCount: Math.max(1, Math.ceil(total / STORE_PAGE_SIZE)),
+  }
+}
+
+/**
+ * The landing page's product row — the perfumes shoppers actually order most.
+ *
+ * "Most ordered" is read from real order lines: units summed per perfume
+ * across every order that was not cancelled. Perfumes nobody has ordered yet
+ * still fill the row after the ranked ones, newest first, so a young shop
+ * shows a full row rather than two cards. `ranked` tells the caller whether
+ * the top of the list has earned the «الأكثر طلبًا» heading — on a shop
+ * with no orders at all it is `false`, and the section says «أحدث العطور»
+ * instead of claiming a popularity nobody measured.
+ *
+ * Same sellability gate as `listCatalog`: nothing a shopper cannot buy.
+ */
+export async function listBestSellers(limit: number): Promise<BestSellers> {
+  const [cards, sales] = await Promise.all([
+    loadCards(SELLABLE_PRODUCT),
+    db.orderItem.groupBy({
+      by: ["variantId"],
+      where: { order: { status: { not: "CANCELLED" } } },
+      _sum: { quantity: true },
+    }),
+  ])
+
+  // Order lines point at variants; the ranking is per perfume.
+  const variants = await db.productVariant.findMany({
+    where: { id: { in: sales.map((row) => row.variantId) } },
+    select: { id: true, productId: true },
+  })
+  const productOf = new Map(variants.map((v) => [v.id, v.productId]))
+
+  const unitsSold = new Map<string, number>()
+  for (const row of sales) {
+    const productId = productOf.get(row.variantId)
+    if (!productId) continue
+    unitsSold.set(
+      productId,
+      (unitsSold.get(productId) ?? 0) + (row._sum.quantity ?? 0)
+    )
+  }
+
+  const units = (id: string) => unitsSold.get(id) ?? 0
+
+  cards.sort(
+    (a, b) =>
+      units(b.card.id) - units(a.card.id) ||
+      b.createdAt.getTime() - a.createdAt.getTime()
+  )
+
+  const products = cards.slice(0, limit).map((row) => row.card)
+
+  return {
+    products,
+    ranked: products.length > 0 && units(products[0].id) > 0,
+  }
+}
+
+/**
+ * The cheapest active option in each product line, for the landing page's
+ * "كحولي ولا دهن خالص؟" comparison — `null` for a line with nothing on sale,
+ * so the page never prints a "from" price it cannot honour.
+ *
+ * Two `aggregate`s rather than one query: the product type lives on the
+ * parent `Product`, and `groupBy` cannot group by a relation's column.
+ */
+export async function getFormatPriceFloors(): Promise<
+  Record<ProductType, number | null>
+> {
+  const floor = (productType: ProductType) =>
+    db.productVariant.aggregate({
+      where: {
+        isActive: true,
+        product: { ...SELLABLE_PRODUCT, productType },
+      },
+      _min: { price: true },
+    })
+
+  const [alcohol, oil] = await Promise.all([
+    floor("ALCOHOL_BASED"),
+    floor("RAW_OIL"),
+  ])
+
+  return {
+    ALCOHOL_BASED: alcohol._min.price?.toNumber() ?? null,
+    RAW_OIL: oil._min.price?.toNumber() ?? null,
   }
 }
 
@@ -357,3 +447,84 @@ export const getStoreProduct = cache(
     }
   }
 )
+
+/* -------------------------------------------------------------------------
+ * Internals
+ * ---------------------------------------------------------------------- */
+
+/**
+ * "Sellable", seen from a category: an active perfume with at least one
+ * active variant. The category's own `isActive` is checked by the caller.
+ */
+const SELLABLE_IN_CATEGORY: Prisma.ProductWhereInput = {
+  isActive: true,
+  variants: { some: { isActive: true } },
+}
+
+/** "Sellable", seen from the whole catalogue — the category must be live too. */
+const SELLABLE_PRODUCT: Prisma.ProductWhereInput = {
+  ...SELLABLE_IN_CATEGORY,
+  category: { isActive: true },
+}
+
+/**
+ * Every perfume matching `where`, shaped as a grid card — plus `createdAt`,
+ * which the sorts need and the card does not carry.
+ *
+ * Shared by `listCatalog` and `listBestSellers` so the card a shopper sees on
+ * `/` and on `/store` is built by one mapping, not two that can drift.
+ */
+async function loadCards(
+  where: Prisma.ProductWhereInput
+): Promise<{ card: StoreProductCard; createdAt: Date }[]> {
+  const rows = await db.product.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      productType: true,
+      createdAt: true,
+      category: { select: { name: true, slug: true } },
+      images: { orderBy: { position: "asc" }, take: 1, select: { url: true } },
+      variants: {
+        where: { isActive: true },
+        // Cheapest first, so the first in-stock row is the card's quick-add
+        // default — see `StoreProductCard.defaultVariantId`.
+        orderBy: { price: "asc" },
+        select: { id: true, price: true, stock: true },
+      },
+    },
+  })
+
+  return rows.map((product) => {
+    const prices = product.variants.map((variant) => variant.price.toNumber())
+    // `null` (not "the first variant regardless of stock") when nothing on
+    // this card can actually be bought — the quick-add buttons disable then,
+    // rather than silently offering to add something with zero stock.
+    const defaultVariantId =
+      product.variants.find((variant) => variant.stock > 0)?.id ?? null
+
+    return {
+      card: {
+        id: product.id,
+        name: product.name,
+        slug: product.slug,
+        description: product.description,
+        category: product.category,
+        productType: product.productType,
+        coverImageUrl: product.images[0]?.url ?? null,
+        defaultVariantId,
+        priceFrom: prices.length > 0 ? Math.min(...prices) : null,
+        priceTo: prices.length > 0 ? Math.max(...prices) : null,
+        totalStock: product.variants.reduce(
+          (total, variant) => total + variant.stock,
+          0
+        ),
+        variantCount: product.variants.length,
+      } satisfies StoreProductCard,
+      createdAt: product.createdAt,
+    }
+  })
+}

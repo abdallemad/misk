@@ -107,13 +107,33 @@ function daysAgo(days: number): Date {
  * Source data
  * ====================================================================== */
 
-/** The three founding segments — same copy as `seed-categories.mts`, kept in
- *  sync by hand because that script is the canonical one and this is a
- *  superset of it. */
+/** The three founding segments — same copy as `seed-categories.mts` (landing
+ *  card copy included), kept in sync by hand because that script is the
+ *  canonical one and this is a superset of it. Only written on *create* here;
+ *  back-filling the segment columns onto an existing row is
+ *  `seed-categories.mts`'s job. */
 const CATEGORIES = [
-  { slug: "youth", name: "شبابي", description: "برغموت وحمضيات، نفَس منعش", position: 0 },
-  { slug: "women", name: "نسائي", description: "ورد وزهور، لمسة بودرية", position: 1 },
-  { slug: "men", name: "رجالي", description: "عود وجلد، عمق راتنجي", position: 2 },
+  {
+    slug: "youth", name: "شبابي", description: "برغموت وحمضيات، نفَس منعش", position: 0,
+    segmentHeadline: "ريحة منعشة لكل يوم",
+    segmentDescription: "حمضيات وبرغموت خفيفة، تنفع للجامعة والشغل والخروجات.",
+    segmentCtaLabel: "تسوّق الشبابي",
+    segmentIconOrImage: "sparkles",
+  },
+  {
+    slug: "women", name: "نسائي", description: "ورد وزهور، لمسة بودرية", position: 1,
+    segmentHeadline: "ريحة ناعمة تفضل معاكي",
+    segmentDescription: "ورد وزهور بلمسة بودرية، هادية وأنيقة طول اليوم.",
+    segmentCtaLabel: "تسوّق النسائي",
+    segmentIconOrImage: "flower",
+  },
+  {
+    slug: "men", name: "رجالي", description: "عود وجلد، عمق راتنجي", position: 2,
+    segmentHeadline: "ريحة واثقة وعميقة",
+    segmentDescription: "عود وجلد بعمق دافي، حضور قوي من غير مبالغة.",
+    segmentCtaLabel: "تسوّق الرجالي",
+    segmentIconOrImage: "flame",
+  },
 ] as const
 
 /** The raw-material master list. `note` is what lands on the join row. */

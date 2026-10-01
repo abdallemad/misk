@@ -18,6 +18,13 @@
  * uploaded image (only the fields listed in `update` are touched, and there
  * are none — an existing row is left exactly as the admin left it).
  *
+ * **Segment copy** (the landing page's category cards — docs/landing-page.md)
+ * is the one exception, and it is still additive: each `segment*` column is
+ * written only while it is `null`. That lets this script back-fill the copy
+ * onto rows that existed before the columns did, without ever overwriting a
+ * card an admin has since rewritten. Matching by slug happens here and only
+ * here — the landing page itself never names a slug.
+ *
  * Run through Node's own TypeScript stripping and `--env-file`, same as
  * `grant-admin.mts`. See docs/categories-feature.md.
  */
@@ -47,17 +54,66 @@ const CATEGORIES = [
   },
 ]
 
+/** The landing page's card copy per founding segment, keyed by slug. */
+const SEGMENT_COPY: Record<
+  string,
+  {
+    segmentHeadline: string
+    segmentDescription: string
+    segmentCtaLabel: string
+    segmentIconOrImage: string
+  }
+> = {
+  youth: {
+    segmentHeadline: "ريحة منعشة لكل يوم",
+    segmentDescription: "حمضيات وبرغموت خفيفة، تنفع للجامعة والشغل والخروجات.",
+    segmentCtaLabel: "تسوّق الشبابي",
+    segmentIconOrImage: "sparkles",
+  },
+  women: {
+    segmentHeadline: "ريحة ناعمة تفضل معاكي",
+    segmentDescription: "ورد وزهور بلمسة بودرية، هادية وأنيقة طول اليوم.",
+    segmentCtaLabel: "تسوّق النسائي",
+    segmentIconOrImage: "flower",
+  },
+  men: {
+    segmentHeadline: "ريحة واثقة وعميقة",
+    segmentDescription: "عود وجلد بعمق دافي، حضور قوي من غير مبالغة.",
+    segmentCtaLabel: "تسوّق الرجالي",
+    segmentIconOrImage: "flame",
+  },
+}
+
 async function main(): Promise<void> {
   for (const category of CATEGORIES) {
+    const copy = SEGMENT_COPY[category.slug] ?? {}
+
     const result = await db.category.upsert({
       where: { slug: category.slug },
       // Empty on purpose: an existing row belongs to whoever edited it last,
       // and a seed script has no business overwriting an admin's copy.
       update: {},
-      create: category,
+      create: { ...category, ...copy },
     })
 
-    console.log(`${result.slug.padEnd(6)} ${result.name}`)
+    // Back-fill only the segment columns that are still empty — and never
+    // the icon on a category that already has a photo: the card falls back
+    // to `imageUrl`, and a real photo beats a seeded icon.
+    const missing = Object.fromEntries(
+      Object.entries(copy).filter(
+        ([key]) =>
+          result[key as keyof typeof copy] === null &&
+          !(key === "segmentIconOrImage" && result.imageUrl)
+      )
+    )
+    if (Object.keys(missing).length > 0) {
+      await db.category.update({ where: { id: result.id }, data: missing })
+    }
+
+    const filled = Object.keys(missing).length
+    console.log(
+      `${result.slug.padEnd(6)} ${result.name}${filled ? `  (+${filled} segment fields)` : ""}`
+    )
   }
 
   const total = await db.category.count()

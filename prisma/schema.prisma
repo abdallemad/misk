@@ -84,6 +84,22 @@ model Category {
   /// Manual sort order for the storefront's category nav. Ties break by name.
   position    Int      @default(0)
 
+  // Landing-page segment card — docs/landing-page.md, "The category
+  // selector". All four are nullable: a segment with no copy yet still gets
+  // a card, built from `name` + `description` + a generic line, so adding a
+  // category never needs a code edit to appear on `/`.
+
+  /// Card headline — "ريحة منعشة لكل يوم". Falls back to `name`.
+  segmentHeadline    String?
+  /// One or two lines under the headline. Falls back to `description`.
+  segmentDescription String?
+  /// Button text — "تسوّق الشبابي". Falls back to "تسوّق <name>".
+  segmentCtaLabel    String?
+  /// Either an icon key from `SEGMENT_ICON_KEYS` (constants/landing.ts) —
+  /// "sparkles" — or an image URL / public path. Falls back to `imageUrl`,
+  /// then to a default icon.
+  segmentIconOrImage String?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -1,26 +1,30 @@
 # Landing Page & Marketing Pages
 
-`/` — the front door: a hero (with a search box), the three founding
-categories, a real "latest perfumes" grid, and the manufacturing story.
-`/about` and `/contact` are its two siblings — the fuller brand story, and
-every channel to reach the shop. All three share the same storefront chrome
-and the same `components/marketing/` footer, and none of the three fetches
-anything a shopper needs to be signed in for.
+`/` — the front door, rebuilt around the audience research: a brand-promise
+hero, **one section per audience segment** (each headed by its key message),
+a category selector **mapped from the database**, the perfumes shoppers actually order
+most, how an order is made, the quality claims, alcohol vs. pure oil with
+live "from" prices, a brand-story teaser and a closing band. `/about` and
+`/contact` are its two siblings — the fuller brand story, and every channel
+to reach the shop. All three share the same storefront chrome and the same
+`components/marketing/` footer, and none of the three fetches anything a
+shopper needs to be signed in for.
 
 ## Related documents
 
 - [`folder-structure.md`](./folder-structure.md) — the layer architecture; this document was pre-referenced there before `/` (and `/about`) existed
-- [`store-feature.md`](./store-feature.md) — **built** — `catalog.service.ts` (what "latest perfumes" and the search box both read), `StoreProductCard` (reused as-is), and the header nav (`StoreHeader` / `StoreNavMenu`) all three pages here share instead of owning their own
+- [`store-feature.md`](./store-feature.md) — **built** — `catalog.service.ts` (every read on `/`: segment categories, best sellers, price floors), `StoreProductCard` (reused as-is), and the header nav (`StoreHeader` / `StoreNavMenu`) all three pages here share instead of owning their own
+- [`categories-feature.md`](./categories-feature.md) — the `Category` table, and the four `segment*` columns this page's category cards read (and the admin form that edits them)
 - [`cart-feature.md`](./cart-feature.md) — «اشترِ الآن» / «أضف إلى السلة» on each card on `/` are the exact same buttons and the exact same reasoning as the catalogue grid's, because it is the exact same component
-- [`categories-feature.md`](./categories-feature.md) — Youth / Women / Men, the three segments the category strip still hard-codes
-- [`misk_business_analysis.md`](./misk_business_analysis.md) — the internal planning document `/about` translates into customer-facing copy; the brand story `Craft` (on both `/` and `/about`) translates into three claims
+- [`database-seeding.md`](./database-seeding.md) — `seed-categories.mts`, which back-fills the founding segments' card copy
+- [`misk_business_analysis.md`](./misk_business_analysis.md) — the internal planning document `/about` translates into customer-facing copy; the source of every manufacturing claim `/` makes
 
 ---
 
 ## Routes
 
 ```text
-/           the landing page — hero + search, category strip, latest perfumes, craft story
+/           the landing page — see "The page, top to bottom" below
 /about      the fuller manufacturing story — the two product lines, the three categories
 /contact    every channel to reach the shop — WhatsApp, Instagram, Facebook, email, phone
 ```
@@ -34,103 +38,261 @@ built, so the group would exist for one route alone.
 
 ---
 
-## From a design-system exercise to a real page
+## The page, top to bottom
 
-`page.tsx`'s own doc comment used to say this plainly:
+`src/app/page.tsx` is now short: it runs four reads in parallel and hands
+each section its data. Every section is a Server Component in
+`components/marketing/landing/`, so the category cards and the product
+cards are in the first HTML a crawler receives.
 
-> *Placeholder copy and hard-coded products for now: the point of this file
-> today is to exercise the design system end to end. Once the catalog is
-> wired up, the sections here move into `components/marketing/` and the
-> products come from `product.service.ts`.*
+| # | Section | Component | Data |
+| --- | --- | --- | --- |
+| 1 | Hero — the brand promise (the page's only `<h1>`), «تسوّق المجموعة» → `/store`, «حكاية الصناعة» → `/about`, trust line, search box, a carousel of product photos | `hero.tsx` + `hero-carousel.tsx` | the best-sellers that have a photo (up to 5) |
+| 2–4 | One section per audience segment — gift buyers, luxury on a budget, long day out — each headed by its key message | `audience-section.tsx` (`AudienceSections`) | static — `constants/landing.ts`; the budget section's «عطور تبدأ من» is the live lowest price |
+| 3 | «أي عطر يشبهك؟» — one card per category | `category-segments.tsx` | **database** — `listSegmentCategories()` |
+| 4 | «الأكثر طلبًا» (or «أحدث العطور») — six product cards | `best-sellers.tsx` | **database** — `listBestSellers(6)` |
+| 5 | «إزاي عطرك بيوصلك» — three steps | `how-it-works.tsx` | static |
+| 6 | «عارفين إيه اللي جوه كل إزازة» — three quality claims | `quality.tsx` | static |
+| 7 | «كحولي ولا دهن خالص؟» — two-column comparison | `format-comparison.tsx` | **database** — `getFormatPriceFloors()` |
+| 8 | «من الزيت للإزازة، بإيدينا» — brand-story teaser → `/about` | `brand-story.tsx` | static |
+| 9 | Closing band → `/store` | `final-cta.tsx` | static |
+| — | Footer — category links | `site-footer.tsx` | **database** — `listCatalogCategories()` |
+| — | JSON-LD — `Organization` + `ItemList` of `Product` | `landing-json-ld.tsx` | the best-seller row |
 
-The catalog has been wired up for a while now (`store-feature.md`), and this
-round is what actually followed through on that note — partially. Three
-things changed:
+Every fixed string on the page lives in **`constants/landing.ts`** — the
+hero, the audience cards, the section frames, the steps, the claims, the
+format copy, the story and the closing line — so a copy change is one edit
+there. The section components hold markup, not words.
 
-| Section | Before | Now |
-| --- | --- | --- |
-| Header | A bespoke `SiteHeader` — flat category links + «حكايتنا», its own `AuthNav`/`ThemeToggle`/cart icon | The shared `StoreHeader` (`components/store`) — the same «المتجر» / «حسابي» hover dropdowns `/store`, `/cart`, `/checkout` and `/account/*` already render |
-| "Featured" perfumes | `FEATURED` — three hard-coded objects, a decorative `<DropletIcon>` instead of a photo, no real price or stock | `Latest` — `catalog.service.listCatalog({ sort: "newest" })`, the first six real, active, in-stock perfumes, rendered with the actual `StoreProductCard` (photo, live price, live stock badge, live buy buttons) |
-| Text alignment | Hero and section headers were start-aligned (RTL default) inside a centered *container* | Hero and every section heading are centered — `mx-auto` + `text-center` on the text block, the button row `justify-center` |
-
-The **category strip did not move to real data** — see below for why that one
-stays hard-coded on purpose, unlike the other two.
-
-### Why `StoreHeader`, not `SiteHeader`
-
-The page's own header used to duplicate what `StoreHeader` already builds:
-`AuthNav`, `ThemeToggle`, a cart icon with the live count, and a nav — except
-its nav was three flat links (Youth / Women / Men) plus «حكايتنا», hand-rolled
-separately from the one `store-feature.md`'s "Header nav — hover dropdowns"
-section documents. Landing on `/` used to mean a shopper saw a *different*
-header than every other storefront page, with none of the dropdown grouping
-those pages got. Rendering the same `StoreHeader` here means `/` is simply
-one more page inside the storefront chrome — the same "the header nav" a
-shopper already learned on `/store` now works identically the moment they
-land on `/`.
-
-`SiteFooter` was **not** replaced the same way. `StoreFooter` (also in
-`components/store`) is deliberately minimal — brand mark and a copyright
-line, nothing else — because `/store`, `/cart`, `/checkout` and `/account/*`
-don't need a footer nav; a shopper already deep in a task has the header.
-The landing page is different: it is often the *first* page, and its footer
-is where «حكايتنا» / «نظام التصميم» / the category links live for someone who
-scrolled all the way down instead of using the header. Swapping it for
-`StoreFooter` would have deleted those links outright, so `page.tsx` keeps
-its own `SiteFooter`.
-
-### Why "latest", not "featured"
-
-`Product` has no `isFeatured` flag, and this round did not add one — a
-hand-picked "featured" set is an editorial decision (which perfumes to put
-in the shop window) that belongs to an admin control, not a hard-coded array
-in a page component pretending to be one. `listCatalog({ sort: "newest" })`
-is a real, already-correct answer to a related but simpler question — "what
-did we just add" — reusing the exact sort `/store`'s own «الأحدث» option
-already offers, with the exact same sellability gate (`isActive` perfume,
-`isActive` category, at least one active variant). `LATEST_COUNT = 6` takes
-the first two rows of the same `sm:grid-cols-2 lg:grid-cols-3` grid `/store`
-uses. If the shop ever wants genuinely curated picks instead of "newest
-first", that is the day `Product.isFeatured` (or a small join table, if more
-than one list is ever needed) becomes worth the migration — see "Extending
-this".
-
-**Empty catalogue, handled.** `Latest` returns `null` when `listCatalog`
-comes back with nothing (a fresh, unseeded database) rather than rendering an
-empty heading over a blank grid.
-
-### Why the category strip stayed hard-coded
-
-`CategoryStrip` still maps over a literal `["youth", "women", "men"]` and
-reads their copy from `constants/design-system.ts`'s `CATEGORY_ACCENT`,
-**not** `catalog.service.listCatalogCategories()` — the read `StoreHeader`'s
-«المتجر» dropdown and `/store`'s own chips both already use. This is not an
-oversight; `categories-feature.md` is explicit that Youth / Women / Men are
-the shop's **founding segments**, designed copy and a hand-picked accent
-colour each, not rows an admin is expected to add more of on a Tuesday. The
-landing page's three cards are that same designed set, in the same
-`CATEGORY_ACCENT` this project already treats as the source of truth for
-"how these three are described" — pulling them from the database instead
-would only add a query for data that is, today, exactly as fixed as the
-constant already says it is. The day a fourth category is a real,
-often-added thing (rather than a rare, deliberate one), this is the section
-to switch to `listCatalogCategories()` — the same day `categories-feature.md`
-itself would need updating.
+**There is no reviews section.** The brief says to render one only if
+reviews exist in the database, and to never invent testimonials. The schema
+has no review table, so there is nothing to render — see "Social proof"
+below for what adding one takes.
 
 ---
 
-## Centered
+## The hero carousel
 
-Every section's heading — the hero's eyebrow/title/description, "تسوّق حسب
-الفئة", "أحدث العطور", and the already-centered "الجودة والمكوّنات" — is now
-`mx-auto max-w-3xl` (hero) or `mx-auto max-w-prose` (the rest) with
-`text-center`, and the button rows under them are `justify-center`. Grids
-(the category cards, the product cards) were already visually balanced by
-their own `grid` columns and needed no change; "centered" describes the
-*text* blocks that sit above and below them, which used to sit flush to the
-line's start (the RTL default) inside an already-centered *container*. The
-`Craft` section was centered before this round and is unchanged — the rest
-of the page now reads consistently with it instead of the other way around.
+The hero's photo is a carousel (`hero-carousel.tsx`, a Client Component)
+of the best-sellers that have a real photo — best-seller order, at most
+`HERO_SLIDES_MAX` (5) — each slide a link to that perfume with its
+category and name captioned over a dark gradient. With no photos in the
+catalogue it falls back to one placeholder slide and renders no controls.
+
+- **Built on `embla-carousel-react` directly**, not on
+  `components/ui/carousel.tsx`: the shadcn wrapper positions its arrows and
+  reads ← / → for a left-to-right page. Here embla runs with
+  `direction: "rtl"`, the "previous" arrow sits on the right, and ← means
+  *next* — the way a right-to-left reader expects.
+- **Autoplay** every `HERO_AUTOPLAY_MS` (5s), paused while the pointer or
+  focus is inside and while the tab is hidden; **never started** under
+  `prefers-reduced-motion: reduce`. A `setInterval` calling `scrollNext()` —
+  no autoplay plugin dependency.
+- **Performance.** Only slide one loads eagerly with `fetchPriority="high"`
+  (it is the LCP image); slides 2–5 keep `next/image`'s lazy default. Embla
+  moves the track with a `transform`. The whole carousel sits inside the
+  hero's `settle` reveal — a scale, never an opacity fade, for the same LCP
+  reason.
+- **A11y.** A `region` labelled «عطور مختارة» with
+  `aria-roledescription="carousel"`; each slide a `group` labelled
+  «n من N»; dots are buttons with `aria-current`.
+
+The carousel shows whatever photos the products have — see "Content still
+needed": if those are other brands' bottles, so is the carousel.
+
+---
+
+## Audience segments vs. categories — two sections, on purpose
+
+The marketing research produced three **audience segments**:
+
+| Segment | Key message (used verbatim as the card headline) | Card links to |
+| --- | --- | --- |
+| Gift buyers | «هدية فاخرة بتغليف أنيق، وسعر يخليك تهادي الكل.» | `/store` |
+| Luxury lovers on a budget | «ريحة البراند اللي بتحبها، بجودة عالية وسعر يناسبك.» | `/store?sort=price-asc` |
+| Out of the house all day | «رش مرة الصبح، وريحتك تفضل معاك طول اليوم.» | `/store?type=ALCOHOL_BASED` |
+
+These are **needs a shopper arrives with**, not shelves. The shop's
+`Category` rows (شبابي, نسائي, الدهان والمسك, للجنسن…) are gender / style
+shelves, and a perfume is filed on exactly one of them. Putting the gift
+message on the «شبابي» card, or turning the three segments into categories
+(which would empty the real shelves — `Product.categoryId` is single-valued),
+would both have misrepresented the catalogue. So the page answers each
+question in its own section:
+
+- **Sections 2–4** are the segments — one full section each, static copy,
+  each pointing at the store view that answers that need.
+- **Section 3** is the categories — rows from the database, each card
+  pointing at `/store?category=<slug>`.
+
+This was an explicit decision with the shop owner when the page was rebuilt.
+
+### One section per audience
+
+The segments first shipped as three cards under one «بتدوّر على إيه؟»
+heading. The owner asked for each to get **a section of its own**, and
+that is the shape now: three `<section>`s in research order, each with
+
+- an eyebrow question in gold with the segment's icon («بتدوّر على هدية؟»),
+- the **key message as the section's `<h2>`** — so the page's outline reads
+  as the three messages, one per stop,
+- one line of body copy, three supporting points (a gold check each — the
+  research's own "solution" line, split into its three claims), and the
+  segment's CTA,
+- a visual panel beside the text: the segment's icon in a gold disc inside
+  two hairline gold rings (the same ring as the brand's placeholder image),
+  with a one-line caption in the display face.
+
+Sides alternate — text on the right, panel on the left, then flipped
+(`lg:order-last` on the text column) — and so does the background (the
+middle section gets `bg-secondary/40` between hairline borders), so three
+sections in a row read as three distinct stops. Below `lg` the panel stacks
+under the text and the text centres, the same rule as the hero.
+
+**Only one panel shows a price, and it is live.** The budget segment's whole
+promise is the price, so its panel prints «عطور تبدأ من …» from the
+catalogue's real lowest price (the smaller of `getFormatPriceFloors()`'s two
+floors, `lowestPrice()` in `page.tsx`) — and prints nothing if nothing is on
+sale. The other two panels make no numeric claim. The grouping heading
+«بتدوّر على إيه؟» and its `AUDIENCE_SECTION` constant are gone; each segment
+is its own section now, so there is nothing to group.
+
+---
+
+## The category selector — categories are data now
+
+This used to be `CategoryStrip`, a hard-coded `["youth", "women", "men"]`
+reading its copy from `CATEGORY_ACCENT`, with a paragraph here defending
+that choice ("founding segments, not rows an admin adds on a Tuesday"). That
+defence did not survive contact with the live shop: the admin had already
+created «الدهان والمسك» and «للجنسن» and retired «رجالي», so the hard-coded
+strip was advertising a shelf with nothing on it and hiding two that were
+selling. **Nothing on `/` names a category any more.**
+
+`catalog.service.listSegmentCategories()` returns the same set, order and
+gate as `listCatalogCategories()` — active, **with at least one sellable
+perfume**, sorted by `position` then name — plus the card copy. A category
+with nothing to buy gets no card, for the same "a card that leads to an
+empty grid is a dead end" reason the store's chips give; it appears the
+moment its first perfume goes on sale.
+
+### The four `segment*` columns, and their fallbacks
+
+`Category` gained four nullable columns (migration
+`20260930120000_category_segment_copy`). Each card takes the most specific
+value it has:
+
+| Card part | Column | Falls back to |
+| --- | --- | --- |
+| Headline (`<h3>`) | `segmentHeadline` | `name` |
+| Description | `segmentDescription` | `description`, then the generic `SEGMENT_FALLBACK_DESCRIPTION` |
+| Button text | `segmentCtaLabel` | «تسوّق <name>» |
+| Icon / image | `segmentIconOrImage` | the category's own `imageUrl`, then a sparkle icon |
+
+`segmentIconOrImage` holds either an **icon key** from `SEGMENT_ICON_KEYS`
+(`sparkles`, `flower`, `flame`, `gift`, `gem`, `sun`, `moon`, `leaf`,
+`droplet`, `heart`) or an **image** — a public path (`/…`) or one of our own
+`https://res.cloudinary.com/…` URLs. Nothing else: `next.config.ts` allows no
+other remote image host, and `next/image` throws at render on one it does
+not allow. The admin schema rejects anything else, and the card ignores an
+unusable value rather than crashing (`isSegmentImageSrc`).
+
+The admin edits all four in `/admin/categories`, in a «بطاقة الصفحة
+الرئيسية» group at the bottom of the category dialog — see
+[`categories-feature.md`](./categories-feature.md).
+
+**The grid adapts to any count.** `grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]`
+rather than a fixed `sm:grid-cols-3`: one, two, four or seven categories all
+lay out evenly, one column on a phone.
+
+**The accent line survives.** Each card still carries its category colour
+through `categoryAccent(slug)` — the neutral accent for any slug
+`CATEGORY_ACCENT` has never heard of, never a direct index (see the warning
+in [`categories-feature.md`](./categories-feature.md)).
+
+---
+
+## Best sellers — ranked by real orders
+
+`listBestSellers(6)` sums `OrderItem.quantity` per perfume across every order
+that is not `CANCELLED`, ranks sellable perfumes by that, and fills the rest
+of the row newest-first. The heading is **earned**: «الأكثر طلبًا» only when
+the top card has real orders behind it; on a shop with no orders the same
+section says «أحدث العطور» instead of claiming a popularity nobody measured.
+
+This replaces the old `Latest` section (`listCatalog({ sort: "newest" })`
+sliced to six). No `Product.isFeatured` flag was added — "most ordered" is a
+fact the database already holds; "featured" would be an editorial choice
+that needs an admin control. The cards are `StoreProductCard`, unchanged:
+photo, name, the admin-written description, "from" price, stock badge, and
+the live add-to-cart buttons.
+
+`catalog.service.ts` grew a private `loadCards(where)` so `listCatalog` and
+`listBestSellers` build a card through one mapping — see
+[`store-feature.md`](./store-feature.md).
+
+---
+
+## Choose your format — prices from the database
+
+`getFormatPriceFloors()` returns the cheapest active variant of a sellable
+perfume per product type. The comparison prints «يبدأ من …» from that number
+and **omits the price line entirely** for a line with nothing on sale, so
+the page never promises a price the shop cannot honour. Each column links
+to `/store?type=ALCOHOL_BASED` / `/store?type=RAW_OIL`, the filter the store
+already reads.
+
+---
+
+## Claims the page makes
+
+Every claim on `/` has to be literally true. The ones that come from the
+manufacturing story (`misk_business_analysis.md` §2, §6) and the checkout
+flow were already on the site and are verifiable in the code:
+
+- blended to order («يُمزَج عند الطلب») — the business model
+- choose your size, 30/50/100 ml, or pure oil by the gram, 5/8/12 g — the `BottleSize` / `OilWeight` enums
+- pharmaceutical-grade ethanol, graded oils — §6
+- cash on delivery («الدفع عند الاستلام») — `/checkout`
+- "from" prices — read live
+
+**These come from the audience research and are the owner's to stand
+behind** — the code cannot verify them: gift-ready elegant packaging
+(«بتغليف أنيق»), scents that match the brands customers love («ريحة مطابقة
+للبراند»), and all-day longevity («طول اليوم»). The research also said
+"lasts a day or two" and named a specific third-party brand as a match;
+the page deliberately says neither — "all day" is the more conservative
+claim, and naming another company's trademark on the storefront is a legal
+question, not a copy one.
+
+---
+
+## SEO basics
+
+- **One `<h1>`** (the hero), an `<h2>` per section, `<h3>` for every card
+  title under it — enforced by the shared `SectionHeading`.
+- **`<title>` and meta description** from `LANDING_SEO` in
+  `constants/landing.ts`. `title.absolute` skips the root layout's
+  "%s · مِسك" template, which would otherwise print the brand twice. The
+  keywords in it («عطور مركّزة», «هدايا عطور») are **placeholders** until the
+  keyword research is done.
+- **Alt text on every image**; only the hero photo loads eagerly with
+  `fetchPriority="high"` — every other image keeps `next/image`'s default
+  `loading="lazy"`.
+- **Server-rendered** — the category and product sections are in the
+  initial HTML.
+- **JSON-LD** — `LandingJsonLd` renders one `<script type="application/ld+json">`
+  holding an `Organization` (name, email, phone, the Instagram/Facebook
+  profiles from `constants/contact.ts`) and an `ItemList` of the best-seller
+  `Product`s, each with an `AggregateOffer` (EGP low/high price, offer count,
+  `InStock` — or `PreOrder` at zero stock, because blended-to-order means
+  "made after you order", not "gone"). It describes only what is on the page.
+  `<` is escaped to `<`, per Next's JSON-LD guide.
+- **Absolute URLs** in the JSON-LD come from `lib/site-url.ts`:
+  `NEXT_PUBLIC_SITE_URL` when set (it should be, in production), otherwise
+  rebuilt from the request's forwarded host. No `canonical` is set yet —
+  without a `metadataBase` it would resolve against the wrong host off
+  Vercel; that belongs to the deeper SEO pass.
 
 ---
 
@@ -141,17 +303,120 @@ A plain `<form action={ROUTES.store}>` with `<input type="search" name="q">`
 submission already does exactly what is wanted: the browser navigates to
 `/store?q=<value>`, which `store-filters.tsx` already reads back out via its
 own `search` prop — the identical query param `/store`'s own search box
-writes. This is not a second search implementation; it is the same one
-`/store` already has, reached from one more place. `role="search"` and
-`aria-label` on the `<Input>` match the accessibility annotations
-`store-filters.tsx`'s own search box already carries.
+writes. It survived the rebuild — the brief's hero did not list it, but it
+was an earlier explicit request, and it sits under the trust line.
 
 No separate `/search` page or `search.service.ts` was built —
 `folder-structure.md` still lists `search-feature.md` as a distinct,
-unbuilt feature (a relevance-ranked search across perfumes, under the
-still-unbuilt `(shop)` group). This search box deliberately reuses the
-already-working `contains` search `/store` has today rather than building
-that.
+unbuilt feature.
+
+---
+
+## Motion
+
+The landing page animates, to one pattern, on `motion` (the package
+formerly called Framer Motion, v12) — kept lean on purpose.
+
+### The pattern
+
+| Moment | What moves | How | Where |
+| --- | --- | --- | --- |
+| **Enter** (on load) | The hero only: text column staggers in (80ms apart), the headline with a short blur-in; the carousel settles from a 1.06 zoom | `Stagger trigger="mount"`, `blurUp`, `settle` | `hero.tsx` |
+| **Reveal** (on scroll) | Every section heading fades up 16px; the section's grid follows, its children staggered; the quality section's gold rule draws itself out | `Reveal` / `Stagger` + `StaggerItem`, `fadeUp`, `draw` | every other section |
+| **Hover** | Cards that link somewhere rise 2px with a softer shadow | CSS `.lift` | category cards (product cards keep their own image zoom) |
+| **Accent** (loop) | A slow sheen crosses the gold CTA every 6s | CSS `.shine` | the hero's «تسوّق المجموعة» and the closing band's button — only those two |
+
+Every entrance uses the same curve as the rest of the site — `--ease-luxe`,
+`cubic-bezier(0.22, 1, 0.36, 1)`, "slow in, settled out" — as `EASE_LUXE` in
+`constants/motion.ts`, with the durations, rise distance, stagger gap and
+viewport rule beside it. Reveals fire **once**.
+
+### The pieces
+
+- `constants/motion.ts` — tokens: `EASE_LUXE`, `DURATION`, `RISE`, `STAGGER`,
+  `REVEAL_VIEWPORT`.
+- `components/motion/variants.ts` — the only four entrances: `fadeUp`
+  (default), `blurUp` (headline only), `settle` (imagery), `draw` (a rule).
+- `components/motion/reveal.tsx` — `Reveal`, `Stagger`, `StaggerItem`.
+  Client Components that take **server-rendered children**, so every
+  section stays a Server Component and its markup stays in the first HTML.
+  `as` keeps semantics — a staggered `<ul>` is still a `<ul>` of `<li>`s.
+- `components/motion/motion-provider.tsx` — `LazyMotion` + `MotionConfig`,
+  wrapped around `<main>` in `app/page.tsx` only.
+- `globals.css` — `.shine`, `.lift` and the `shine` keyframes, under
+  "Motion — the CSS half".
+
+### Performance, and why it is built this way
+
+- **`LazyMotion` + `domAnimation` + `m.*`**, not `motion.*`. It ships the
+  animation features the page uses (animate, variants, in-view) and leaves
+  out layout animation and drag. `strict` makes a stray heavy `motion.div`
+  throw in development. The provider wraps `/` only, so no other route pays
+  for it.
+- **Compositor-only properties.** Entrances move `opacity` and `transform`
+  (`y`, `scale`, `scaleX`). `filter: blur()` is used once, on the hero
+  headline — never on a grid.
+- **The LCP image never fades.** `settle` scales the hero photo but leaves
+  its opacity at 1. An element held at `opacity: 0` is not painted, and not
+  counted as LCP, until it fades in.
+- **Loops and hovers are CSS.** The sheen is a `transform` keyframe on a
+  pseudo-element, and the lift is a `:hover` transition. Neither runs
+  JavaScript per frame or needs hydration. The lift is behind
+  `@media (hover: hover)`, so touch screens don't get a stuck raised card.
+- **Observers disconnect.** `once: true` — after an element reveals, it stops
+  being watched.
+- **`amount: "some"`, not a fraction.** A staggered grid is one observed
+  element, and on a phone the one-column best-seller grid is ~3000px tall. A
+  fractional threshold (0.2 → 600px on screen) can exceed a short or
+  landscape viewport, and the grid would then never reveal. This was caught
+  while testing the first version, which used `amount: 0.2`.
+
+### Accessibility and robustness
+
+- **Reduced motion.** `MotionConfig reducedMotion="user"` honours the OS
+  setting: transforms are dropped and only the opacity fades remain. The CSS
+  half turns the sheen off and the lift into a no-op under
+  `prefers-reduced-motion: reduce`.
+- **No JavaScript.** Every animated element carries `data-motion`. A
+  `<noscript><style>` in `page.tsx` resets them to `opacity: 1;
+  transform: none; filter: none`, so nothing stays at its hidden starting
+  state.
+
+### Magic UI / React Bits, and why they are not installed
+
+The pattern follows two Magic UI components — **BlurFade** (the in-view
+fade-and-rise every reveal here is) and **Shiny Button** (the CTA sheen) —
+but neither library is installed. Both publish copy-in components built on
+the full `motion.*` API, which defeats `LazyMotion`'s saving and would
+throw under `strict`. Writing the two patterns against `m.*` (and the sheen
+as pure CSS) keeps what they look like and drops what they cost. To add
+another effect from either catalogue, port it the same way: `m.*` instead
+of `motion.*`, variants from `variants.ts`, tokens from
+`constants/motion.ts`.
+
+---
+
+## Centered
+
+Every section heading is centred (`SectionHeading`: `mx-auto max-w-prose
+text-center`) — the centred design the page was asked for earlier, kept
+through the rebuild.
+
+**The hero is the one exception, by request.** Its text column is centred
+only while the photo stacks under it (phones and tablets). From `lg` up,
+where the text sits beside the photo, it is start-aligned — the right edge,
+in RTL: `lg:items-start lg:text-start` on the column, `lg:justify-start` on
+the button row and the trust line. Logical `start`, not `right`, so the
+alignment follows the page direction rather than a hard-coded side.
+
+---
+
+## Tone
+
+Warm, simple, Egyptian-friendly Arabic — short sentences, one idea per
+block, in the same voice as the research's key messages. `/about` and
+`/contact` are still in the more formal register they were written in; they
+were out of scope for this round.
 
 ---
 
@@ -202,19 +467,21 @@ A plain Server Component, same reasoning as `/about`.
 
 ---
 
-## `components/marketing/` exists now
+## `components/marketing/` — the footer, and now the landing sections
 
-The original `page.tsx` doc comment predicted its sections would move into
-`components/marketing/` once the catalogue existed. That did not happen the
-first time this document was written (nothing else rendered any of them
-yet) — it happened this round, because `/about` and `/contact` both needed
-the exact same footer `/` already had. `components/marketing/site-footer.tsx`
-is the first (and, for now, only) file there: `SiteFooter`, extracted as-is,
-with a «تواصل معنا» link added. `Hero`, `CategoryStrip`, `Latest` and
-`Craft` stay private functions inside `page.tsx` — nothing outside `/`
-renders any of them, and `/about`'s own `Craft`-shaped section is
-deliberately a separate, more detailed definition rather than an import of
-`/`'s (see "`/about` — the manufacturing story, in full" above).
+`components/marketing/site-footer.tsx` came first: `SiteFooter`, extracted
+the day `/about` and `/contact` needed the same footer `/` had. It is
+`async` now — its category links are `listCatalogCategories()`, the same
+read the header's «المتجر» dropdown uses, instead of a hard-coded
+Youth / Women / Men list.
+
+`components/marketing/landing/` came with the rebuild. The old page kept
+`Hero`, `CategoryStrip`, `Latest` and `Craft` as private functions in
+`page.tsx`, on the reasoning that nothing else rendered them. Nine sections
+plus JSON-LD is past the point where one file reads well, so each section
+got its own file — they are still rendered only by `/`, which is why they
+sit in a `landing/` folder rather than loose in `marketing/`. `/about`'s own
+sections stay private to `app/about/page.tsx`.
 
 **Why not `StoreFooter`.** `components/store/store-chrome.tsx`'s
 `StoreFooter` is deliberately minimal — brand mark and a copyright line —
@@ -239,44 +506,85 @@ second nav component would only be indirection for two `<li>`s.
 
 ---
 
+---
+
 ## Files
 
 | File | What it is |
 | --- | --- |
-| `src/app/page.tsx` | `/` — an `async` Server Component (the "latest" read) |
-| `src/app/about/page.tsx` | `/about` — a plain Server Component, no data fetching |
-| `src/app/contact/page.tsx` | `/contact` — a plain Server Component, no data fetching |
-| `src/components/marketing/site-footer.tsx` | `SiteFooter` — shared by all three pages |
+| `src/app/page.tsx` | `/` — `metadata`, the four parallel reads, the section order |
+| `src/components/marketing/landing/*.tsx` | The sections (`audience-section.tsx` renders three) + `SectionHeading` + `LandingJsonLd`, behind `index.ts` |
+| `src/components/marketing/landing/hero-carousel.tsx` | `HeroCarousel` — the hero's RTL embla carousel (Client Component) |
+| `src/components/motion/*` | `MotionProvider`, `Reveal` / `Stagger` / `StaggerItem`, the four variants — see "Motion" |
+| `src/constants/motion.ts` | Motion tokens — easing, durations, rise, stagger, viewport rule |
+| `src/app/globals.css` | `.shine` / `.lift` + the `shine` keyframes — the CSS half of the motion pattern |
+| `src/constants/landing.ts` | Every fixed string on `/` (incl. `AUDIENCES` — points, panel captions), `LANDING_SEO`, `SEGMENT_ICON_KEYS` + the icon/image predicates |
+| `src/lib/site-url.ts` | `getSiteOrigin()` — absolute origin for the JSON-LD |
+| `src/app/about/page.tsx` | `/about` — a plain Server Component, no data fetching of its own |
+| `src/app/contact/page.tsx` | `/contact` — a plain Server Component, no data fetching of its own |
+| `src/components/marketing/site-footer.tsx` | `SiteFooter` — async now; category links from `listCatalogCategories()` |
 | `src/components/store/store-chrome.tsx` | `StoreHeader` — reused here, not reimplemented |
-| `src/components/store/store-nav.tsx` | `StoreNavMenu` — now has the «عن مِسك» dropdown |
-| `src/components/store/store-product-card.tsx` | `StoreProductCard` — reused here for the "latest" grid |
+| `src/components/store/store-nav.tsx` | `StoreNavMenu` — has the «عن مِسك» dropdown |
+| `src/components/store/store-product-card.tsx` | `StoreProductCard` — reused for the best-seller row |
 | `src/components/shared/social-icons.tsx` | `FacebookIcon` / `InstagramIcon` — lucide has no brand icons for either |
-| `src/services/catalog.service.ts` | `listCatalog({ sort: "newest" })` — the read `/`'s "latest" section and the search box both rely on |
-| `src/constants/design-system.ts` | `CATEGORY_ACCENT` — the category strip's hard-coded copy and colour |
-| `src/constants/contact.ts` | `CONTACT` — the shop's real contact channels `/contact` renders |
-| `src/constants/routes.ts` | `ROUTES.about`, `ROUTES.contact` |
+| `src/services/catalog.service.ts` | `listSegmentCategories` · `listBestSellers` · `getFormatPriceFloors` · `listCatalogCategories` |
+| `src/constants/contact.ts` | `CONTACT` — `/contact` and the `Organization` JSON-LD |
+| `prisma/migrations/20260930120000_category_segment_copy/` | The four `Category.segment*` columns |
+| `scripts/seed-categories.mts` | Back-fills the founding segments' card copy |
 
 ---
 
 ## What is deliberately not here
 
-**A hand-picked "featured" list.** See "Why 'latest', not 'featured'" above —
-`listCatalog({ sort: "newest" })` is what stands in for it today.
+**Social proof.** There is no review table, so there is no reviews section —
+the page does not invent testimonials. When real reviews exist: add a
+`Review` model (product, customer, rating, text, `isPublished` for
+moderation), a `listPublishedReviews()` read, and a section that returns
+`null` on an empty list, slotted between the brand story and the closing
+band. `Product` JSON-LD can then carry a real `aggregateRating`.
+
+**A hand-picked "featured" list.** "Most ordered" is measured; "featured" is
+editorial and would need `Product.isFeatured` plus an admin toggle.
+
+**Segments as data.** The three audience cards are copy in
+`constants/landing.ts`, not rows. If the owner wants to add a fourth segment
+from the admin console one day, that is a small `Audience` table — but a new
+audience is a marketing decision made rarely, and a code edit is the right
+amount of friction for it today.
 
 **A relevance-ranked `/search`.** The hero's search box reuses `/store`'s
-existing `contains` search; a real ranked-search page is `search-feature.md`,
-a separate, still-unbuilt feature under the sketched `(shop)` group.
+existing `contains` search; a ranked search page is `search-feature.md`.
+
+---
+
+## Content still needed
+
+These are the placeholders the rebuild left for the owner, not the code:
+
+- **Original product descriptions.** The cards (and the JSON-LD) print each
+  perfume's `description` as the admin wrote it. The live catalogue's
+  descriptions are currently copied from a fragrance database — release
+  years, perfumer credits and third-party brand names. Rewrite them in
+  `/admin/products` as short, original copy; this is both a content-quality
+  and an SEO (duplicate content) issue.
+- **Hero photos of our own.** The hero carousel shows the best-sellers'
+  product photos. Where those are another brand's bottle, upload an
+  own-brand shot to that product.
+- **Card copy for admin-created categories** — «الدهان والمسك» and «للجنسن»
+  show the fallback line until their `segment*` fields are filled in the
+  category dialog.
+- **Keywords** in `LANDING_SEO`, and `NEXT_PUBLIC_SITE_URL` in production.
 
 ---
 
 ## Extending this
 
-**A real "featured" flag.** Add `Product.isFeatured Boolean @default(false)`,
-an admin toggle next to `isActive` in the product form, and swap `Latest`'s
-`listCatalog({ sort: "newest" })` call for a filtered one. Everything else —
-`StoreProductCard`, the grid, the empty-state guard — stays exactly as it is.
+**A section.** Add its copy to `constants/landing.ts`, its component to
+`components/marketing/landing/` (open it with `SectionHeading` so the heading
+order stays `h2`), export it from `index.ts`, and place it in `page.tsx`.
+If it reads data, the read goes in `catalog.service.ts` and joins the
+`Promise.all`.
 
-**Category strip from real data.** The day a fourth category stops being a
-rare event, swap `CategoryStrip`'s hard-coded array for
-`listCatalogCategories()` — `StoreHeader` and `/store` already show the
-shape that read takes.
+**A new category icon.** Add the key to `SEGMENT_ICON_KEYS` and the lucide
+component to `ICONS` in `category-segments.tsx` — TypeScript fails the build
+until both are done (`Record<SegmentIconKey, LucideIcon>`).

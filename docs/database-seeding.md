@@ -133,7 +133,7 @@ npm run grant-admin -- you@example.com
 ### Catalog
 
 - **3 categories** — `youth` / `women` / `men`, the same copy as
-  `seed-categories.mts`. This script is a superset of that one; the two lists
+  `seed-categories.mts`, landing-card copy (`segment*`) included on create. This script is a superset of that one; the two lists
   are kept in step by hand, with `seed-categories.mts` staying the canonical
   source.
 - **12 ingredients** — a believable raw-material list (medical ethanol, oud
@@ -232,9 +232,21 @@ only rule is that a `PRODUCT` entry's `ingredients[].name` must match an
 `INGREDIENTS` entry exactly, or the link is silently skipped.
 
 After a **schema change** (like the `Order.shipping*` columns this script now
-fills), run `npx prisma db push` then `npx prisma generate` before seeding —
-and stop the dev server first, or `generate` cannot replace the query-engine
-DLL it has open.
+fills), apply it before seeding — `npx prisma migrate dev` locally, or
+`npx prisma migrate deploy` against a shared database (the project has had
+`prisma/migrations/` since 2026-09-30; see
+[`categories-feature.md`](./categories-feature.md), "Applying the change") —
+then `npx prisma generate`. Stop the dev server first, or `generate` cannot
+replace the query-engine DLL it has open.
+
+> **Check where `.env` points before seeding.** As of 2026-09-30 the local
+> `.env`'s `DATABASE_URL` is the **live shop's** Neon database —
+> real products, real orders. `seed-dev` refuses only on
+> `NODE_ENV=production`, which a local shell does not set, so it would
+> happily write 14 fake products and 18 fake customers into the real shop.
+> Point `.env` at a separate development branch/database first.
+> `seed-categories` is gentler (upserts, fills only empty card copy), but it
+> does re-create a founding segment the admin deleted.
 
 Changing the PRNG seed (`makeRng(20260903)`) reshuffles every stock level and
 order history without touching the catalog's shape.

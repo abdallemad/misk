@@ -6,7 +6,7 @@
 - [`erd.md`](./erd.md) — entity relationships (Category, Product, ProductVariant, Cart, Order, User)
 - [`tech-stack.md`](./tech-stack.md) — Next 16, Clerk auth, Cloudinary (product + category images — see `image-uploads.md`), shadcn/Base UI, Prisma, Stripe
 - [`storefront-layout.md`](./storefront-layout.md) — the storefront shell (`(marketing)` header, `(shop)` header + category nav), the shared brand lockup, the cart drawer and the account menu
-- [`landing-page.md`](./landing-page.md) — **built** — `/` (hero + search, category strip, a real "latest perfumes" grid), `/about` (the manufacturing story in full) and `/contact` (WhatsApp/Instagram/Facebook/email/phone)
+- [`landing-page.md`](./landing-page.md) — **built** — `/` (rebuilt around the audience research: brand-promise hero, the three audience segments, a DB-driven category selector, best sellers ranked by real orders, how it works, quality, alcohol vs. pure oil, brand story, JSON-LD), `/about` (the manufacturing story in full) and `/contact` (WhatsApp/Instagram/Facebook/email/phone)
 - [`store-feature.md`](./store-feature.md) — **built** — `/store` (the public catalogue: browse by category, search, filter by type, sort, page) and `/store/[slug]` (one perfume: gallery, the Add to Cart buy box, ingredients). Query-param driven, follows the list-page convention. The `/shop/*` docs below are the separate, still-unbuilt path-based storefront
 - [`image-uploads.md`](./image-uploads.md) — **built** — where a product photo or category picture goes (Cloudinary, via `lib/cloudinary.ts` + `lib/uploads.ts`), and the `public/image.png` default the storefront falls back to
 - [`catalog-feature.md`](./catalog-feature.md) — `/shop`, the flat public perfume listing and its derived filter facets (category, type, size)
@@ -203,6 +203,11 @@ components/
 │
 ├── marketing/
 │
+├── motion/        # built — the storefront's motion system: MotionProvider
+│                  #   (LazyMotion, scoped to `/`), Reveal / Stagger /
+│                  #   StaggerItem, the four variants — landing-page.md,
+│                  #   "Motion"
+│
 ├── store/         # built — /store + /store/[slug] + /cart's body: chrome
 │                  #   (StoreHeader renders StoreNavMenu on sm+ — the
 │                  #   header's hover-dropdown nav, over components/ui/
@@ -341,29 +346,41 @@ so search results and the catalog look identical.
 
 ### marketing/
 
-Built — but not the way this section originally sketched it. The plan below
-predates `/`, `/about` and `/contact` all being real pages; only one file
-exists here today.
+Built — but not the way this section originally sketched it.
 
 ```text
 marketing/
 │
-└── site-footer.tsx          # built — SiteFooter, shared by /, /about and
-                              #   /contact — landing-page.md
+├── site-footer.tsx          # built — SiteFooter, shared by /, /about and
+│                            #   /contact; async — category links come
+│                            #   from listCatalogCategories() — landing-page.md
+│
+└── landing/                 # built — the sections of `/`, one per file:
+    ├── index.ts             #   the barrel page.tsx imports
+    ├── section-heading.tsx  #   eyebrow + <h2> + intro, shared by all sections
+    ├── hero.tsx             #   the <h1>, CTAs, trust line, search
+    ├── hero-carousel.tsx    #   client — RTL embla carousel of best-seller photos
+    ├── audience-section.tsx #   one section per audience segment (static copy)
+    ├── category-segments.tsx#   one card per DB category (segment* columns)
+    ├── best-sellers.tsx     #   StoreProductCard × 6, ranked by real orders
+    ├── how-it-works.tsx     #   three steps
+    ├── quality.tsx          #   three ingredient claims
+    ├── format-comparison.tsx#   alcohol vs. pure oil, "from" prices from DB
+    ├── brand-story.tsx      #   teaser → /about
+    ├── final-cta.tsx        #   closing band → /store
+    └── landing-json-ld.tsx  #   Organization + ItemList<Product>
 ```
 
-> **The four-file sketch above never happened, and likely will not as
-> written.** `Hero`, `CategoryStrip` and `Latest` (the "featured perfumes,
-> category highlights" this doc predicted as `landing-sections.tsx`) turned
-> out to be private functions inside `app/page.tsx` instead — nothing outside
-> that one page renders them, so splitting them into their own file would be
-> indirection with no second caller. `/about`'s sections are similarly
-> private to `app/about/page.tsx`, written as their own, more detailed
-> definitions rather than an import of `/`'s (see
-> [`landing-page.md`](./landing-page.md)). `site-footer.tsx` is the one
-> section that *did* need to move here — the day `/`, `/about` and
-> `/contact` all needed the identical footer. `legal-sections.tsx` has no
-> built counterpart; there is no terms/privacy page yet.
+> **History.** The original sketch here was four files (`hero.tsx`,
+> `landing-sections.tsx`, `about-sections.tsx`, `legal-sections.tsx`). For a
+> while none of them existed — `Hero`, `CategoryStrip` and `Latest` were
+> private functions in `app/page.tsx`, since nothing else rendered them.
+> The audience-research rebuild took `/` to nine sections plus JSON-LD, past
+> the point where one file reads well, so they moved to `landing/` — still
+> rendered only by `/`, hence their own folder rather than loose files here.
+> Their copy lives in `constants/landing.ts`. `/about`'s sections stay
+> private to `app/about/page.tsx`. `legal-sections.tsx` has no built
+> counterpart; there is no terms/privacy page yet.
 
 ---
 
@@ -708,6 +725,9 @@ lib/
 ├── cart.ts        # built — readCartCookie / writeCartCookie, and nothing
 │                  #   else. server-only; writes only work from a Server
 │                  #   Action — cart-feature.md
+├── site-url.ts    # built — getSiteOrigin(): NEXT_PUBLIC_SITE_URL, else the
+│                  #   request's forwarded host — absolute URLs for the
+│                  #   landing page's JSON-LD — landing-page.md
 └── utils.ts       # `cn()`
 ```
 
@@ -736,8 +756,19 @@ prisma/
 │
 ├── schema.prisma
 │
-└── migrations/
+└── migrations/                              # built 2026-09-30
+    ├── migration_lock.toml
+    ├── 0_init/                              #   baseline — the schema as `db push`
+    │                                        #   had left it, marked applied
+    └── 20260930120000_category_segment_copy/ #   Category.segment* columns
 ```
+
+> **`db push` era → migrations.** Until 2026-09-30 the schema was applied
+> with `prisma db push` and this folder did not exist. It was baselined
+> (`0_init`, generated from the drift-free live schema and `migrate resolve
+> --applied`) when the landing page needed four new `Category` columns — see
+> [`categories-feature.md`](./categories-feature.md), "Applying the change".
+> Schema changes now go through `prisma migrate dev` / `migrate deploy`.
 
 > **Seeding does not live in `prisma/`.** There is no `prisma/seed.ts` and no
 > `prisma.seed` config. Scripts are `scripts/*.mts`, run through Node's own
@@ -755,7 +786,9 @@ Core models (see [`erd.md`](./erd.md) for the full diagram):
 - `Category` — Youth / Women / Men, plus whatever the admin adds. A table,
   not an enum, and the admin CRUD for it is
   [`categories-feature.md`](./categories-feature.md). Carries `slug` (the
-  `/shop/[category]` segment), `imageUrl`, `isActive` and `position`.
+  `/shop/[category]` segment), `imageUrl`, `isActive` and `position`, plus
+  four nullable `segment*` columns — the landing page's card copy for it
+  ([`landing-page.md`](./landing-page.md)).
 - `Product` — name, slug, description, ingredients, images[], productType
   (`ALCOHOL_BASED` | `RAW_OIL`), categoryId, isActive
 - `ProductVariant` — productId, bottleSize (`ML_30` | `ML_50` | `ML_100`,
@@ -848,9 +881,16 @@ constants/
 ├── egypt.ts           # built — EGYPT_GOVERNORATES, the fixed 27-item list
 │                      #   the checkout governorate `<Select>` offers —
 │                      #   checkout-orders-feature.md
-├── contact.ts         # built — CONTACT — every placeholder value /contact
-│                      #   renders (WhatsApp/Instagram/Facebook/email/phone)
+├── contact.ts         # built — CONTACT — the shop's real channels /contact
+│                      #   renders (WhatsApp/Instagram/Facebook/email/phone),
+│                      #   also the landing page's Organization JSON-LD
 │                      #   — landing-page.md
+├── motion.ts          # built — motion tokens: EASE_LUXE (= --ease-luxe),
+│                      #   DURATION, RISE, STAGGER, REVEAL_VIEWPORT —
+│                      #   landing-page.md, "Motion"
+├── landing.ts         # built — every fixed string on `/` (hero, the three
+│                      #   audience segments + key messages, section copy,
+│                      #   LANDING_SEO), SEGMENT_ICON_KEYS — landing-page.md
 └── design-system.ts   # tones, order status, stock, category + type accents
 ```
 
