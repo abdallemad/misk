@@ -15,6 +15,10 @@ export const ROUTES = {
   about: "/about",
   /** WhatsApp / Instagram / Facebook / email / phone — built, docs/landing-page.md. */
   contact: "/contact",
+  /* Legal — linked from the footer; copy in constants/legal.ts, see docs/legal-pages.md */
+  terms: "/terms",
+  privacy: "/privacy",
+  refunds: "/refunds",
   shop: "/shop",
   /** The built storefront catalogue — filter/search/paginate perfumes by
    *  category. `/shop/*` above is the separate, still-unbuilt path-based

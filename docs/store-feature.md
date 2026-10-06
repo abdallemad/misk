@@ -49,7 +49,7 @@ Both are distinct from the still-unbuilt path-based storefront the
 The brief was *"render the products by the category and give a filtration and
 search and pagination"*. Grouped-by-category sections and pagination pull in
 opposite directions — a page that is both "all of Youth, then all of Women"
-*and* "12 per page" cannot be either cleanly. So the by-category view is a
+*and* "8 per page" cannot be either cleanly. So the by-category view is a
 **filter, rendered as chips**:
 
 - a chip row — «الكل» + one per active segment, each with its live count —
@@ -156,9 +156,16 @@ JavaScript. That is a deliberate call:
   and `customer.service.listCustomers` already make.
 
 If the catalogue ever grows past a few hundred perfumes, this is the one
-function to move the sort and the paging back into SQL. `STORE_PAGE_SIZE` (12
-— divides into 2 / 3 / 4 columns) lives next to it, the same as
-`PRODUCTS_PAGE_SIZE` and friends.
+function to move the sort and the paging back into SQL. `STORE_PAGE_SIZE`
+lives next to it, the same as `PRODUCTS_PAGE_SIZE` and friends. It is **8**
+(it was 12 until 2026-10-06): with a live catalogue of exactly a dozen
+perfumes, 12 meant one page and the pager never appeared. 8 fills the
+2-column grid evenly; the 3-column grid ends on a row of 2, accepted as the
+price of paging a small catalogue at all.
+
+The requested page is **clamped** to `pageCount`. A stale `?page=5` (the
+catalogue shrank, or a bookmarked link) lands on the last page instead of an
+empty grid saying "no matches" under a total that says otherwise.
 
 ### `listCatalogCategories()`
 
@@ -244,11 +251,39 @@ feature created it.
 | Piece | Was | Now |
 | --- | --- | --- |
 | `useListNavigation` | `components/admin/shared/list-controls.tsx` | `components/shared/use-list-navigation.ts`; the admin path **re-exports** it, so no admin filter component changed |
-| `Pagination` | admin-only `AdminPagination` in `components/admin/shared` | new `components/shared/pagination.tsx`, generic (`page` / `pageCount` / `basePath` / `params`), `<Link>`-based, RTL, hidden on one page |
+| `Pagination` | admin-only `AdminPagination` in `components/admin/shared` | new `components/shared/pagination.tsx`, generic (`page` / `pageCount` / `basePath` / `params`), `<Link>`-based, RTL, hidden on one page; **numbered** since 2026-10-06 (see below) |
 
 `AdminPagination` is left in place and still used by the four admin lists —
 consolidating them onto the shared `<Pagination>` is a mechanical follow-up,
 not done here to keep the admin surface untouched by a storefront change.
+The two have since diverged — the shared one is numbered, the admin one is
+still prev / next — so the consolidation would also upgrade the admin lists.
+
+### The pager: «السابق · 1 2 … 9 · التالي»
+
+`<Pagination>` started as prev / next plus «صفحة 1 من 2». It now prints the
+page numbers, so a shopper can jump straight to any page:
+
+- **Which numbers.** Always the first and the last, the current page with
+  one neighbour each side, and «…» for each run left out — `1 … 4 5 6 … 10`.
+  A gap of exactly one page prints the page instead (`1 2 3 4 5 … 10`, not
+  `1 … 3 4 5 … 10`): a «…» the width of the number it hides saves nothing.
+  That is `pageWindow()`, private to the component.
+- **The current page** is the filled `default` button with
+  `aria-current="page"`; the rest are `ghost`. Every number carries an
+  `aria-label` («صفحة 2 من 5»), so the dropped «صفحة X من Y» line is not
+  lost to a screen reader.
+- **Still `<Link>`s**, not the `ui/pagination` primitives — those render bare
+  `<a>`s, so every page change would be a full document load. A `<Link>` is a
+  client navigation that scrolls back to the top of the grid.
+- **Phones.** Below `sm` the «السابق» / «التالي» labels collapse to their
+  chevrons and the numbers drop from 36px to 32px. The widest row the window
+  can produce (7 slots + 2 arrows) is then 332px, inside a 375px screen's
+  343px content box.
+- The outline step buttons go through `cn()`. Raw `buttonVariants()` output
+  keeps the base `border-transparent` *and* the outline variant's
+  `border-border`, and the transparent one wins on source order; only
+  tailwind-merge drops it.
 
 ### Why the category chips are *not* in the client filter bar
 
@@ -523,7 +558,7 @@ than writing `?sort=newest`, so the canonical catalogue URL stays clean.
 | `src/app/store/[slug]/page.tsx` | One perfume — `getStoreProduct` + `generateMetadata`, `notFound()` on a stale slug |
 | `src/app/store/[slug]/loading.tsx` | Skeleton for the product query |
 | `src/components/store/index.ts` | Barrel |
-| `…/store-chrome.tsx` | `StoreHeader` (renders `StoreNavMenu`, fetches `listCatalogCategories()`) + `StoreFooter` |
+| `…/store-chrome.tsx` | `StoreHeader` (renders `StoreNavMenu`, fetches `listCatalogCategories()`) + `StoreFooter` (brand mark, the three legal links — legal-pages.md — and copyright) |
 | `…/store-nav.tsx` | Client — the header's «المتجر» / «حسابي» hover dropdowns |
 | `src/components/ui/navigation-menu.tsx` | The Base UI `NavigationMenu` wrapper `store-nav.tsx` is built from |
 | `…/store-category-nav.tsx` | Server — the in-page category chips, plain `<Link>`s |

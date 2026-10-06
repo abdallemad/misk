@@ -36,12 +36,19 @@ const ICONS: Record<AudienceIcon, LucideIcon> = {
  * three distinct stops rather than one long block. Below `lg` the panel
  * stacks under the text and everything centres — the same rule as the hero.
  *
+ * Scrolling: from `lg` each section is `sticky top-4`, so the next one
+ * slides up over it and the three stack like cards. The wrapper `<div>` is
+ * the sticky boundary — once it ends, the last section scrolls away with it
+ * instead of staying pinned under the rest of the page. Below `lg` the panel
+ * stacks under the text and a section outgrows the viewport, so pinning it
+ * would hide its bottom (the CTA) under the next one; there they just scroll.
+ *
  * `priceFrom` is the catalogue's live lowest price (`getFormatPriceFloors`);
  * only a segment with `showPriceFrom` prints it, and only when it exists.
  */
 export function AudienceSections({ priceFrom }: { priceFrom: number | null }) {
   return (
-    <>
+    <div>
       {AUDIENCES.map((audience, index) => (
         <AudienceSection
           key={audience.id}
@@ -50,7 +57,7 @@ export function AudienceSections({ priceFrom }: { priceFrom: number | null }) {
           priceFrom={audience.showPriceFrom ? priceFrom : null}
         />
       ))}
-    </>
+    </div>
   )
 }
 
@@ -69,7 +76,14 @@ function AudienceSection({
   return (
     <section
       aria-labelledby={titleId}
-      className={cn(flipped && "border-y border-border bg-secondary/40")}
+      className={cn(
+        // Opaque: a stuck section must hide the one it slides over. The
+        // flipped tint is layered on `bg-background` for the same reason —
+        // `bg-secondary/40` alone would let the section beneath show through.
+        "bg-background lg:sticky lg:top-4",
+        flipped &&
+          "border-y border-border bg-linear-to-b from-secondary/40 to-secondary/40"
+      )}
     >
       <div className="mx-auto grid max-w-page items-center gap-10 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-2 lg:gap-16">
         <Stagger

@@ -5,10 +5,12 @@ hero, **one section per audience segment** (each headed by its key message),
 a category selector **mapped from the database**, the perfumes shoppers actually order
 most, how an order is made, the quality claims, alcohol vs. pure oil with
 live "from" prices, a brand-story teaser and a closing band. `/about` and
-`/contact` are its two siblings — the fuller brand story, and every channel
-to reach the shop. All three share the same storefront chrome and the same
-`components/marketing/` footer, and none of the three fetches anything a
-shopper needs to be signed in for.
+`/contact` are its two siblings — the brand story in the founder's words, and
+every channel to reach the shop. All three share the same storefront chrome
+and the same `components/marketing/` footer, and none of the three fetches
+anything a shopper needs to be signed in for. The three legal pages
+(`/terms`, `/privacy`, `/refunds`) share that chrome too — see
+[`legal-pages.md`](./legal-pages.md).
 
 ## Related documents
 
@@ -17,7 +19,8 @@ shopper needs to be signed in for.
 - [`categories-feature.md`](./categories-feature.md) — the `Category` table, and the four `segment*` columns this page's category cards read (and the admin form that edits them)
 - [`cart-feature.md`](./cart-feature.md) — «اشترِ الآن» / «أضف إلى السلة» on each card on `/` are the exact same buttons and the exact same reasoning as the catalogue grid's, because it is the exact same component
 - [`database-seeding.md`](./database-seeding.md) — `seed-categories.mts`, which back-fills the founding segments' card copy
-- [`misk_business_analysis.md`](./misk_business_analysis.md) — the internal planning document `/about` translates into customer-facing copy; the source of every manufacturing claim `/` makes
+- [`misk_business_analysis.md`](./misk_business_analysis.md) — the internal planning document; the source of every manufacturing claim `/` makes, and (§1.1) of the founder's brand-story text `/about` and the footer quote verbatim
+- [`legal-pages.md`](./legal-pages.md) — `/terms`, `/privacy`, `/refunds`, linked from both footers
 
 ---
 
@@ -25,7 +28,7 @@ shopper needs to be signed in for.
 
 ```text
 /           the landing page — see "The page, top to bottom" below
-/about      the fuller manufacturing story — the two product lines, the three categories
+/about      the brand story in the founder's words, the values, the quality claims, the two formats
 /contact    every channel to reach the shop — WhatsApp, Instagram, Facebook, email, phone
 ```
 
@@ -48,7 +51,7 @@ cards are in the first HTML a crawler receives.
 | # | Section | Component | Data |
 | --- | --- | --- | --- |
 | 1 | Hero — the brand promise (the page's only `<h1>`), «تسوّق المجموعة» → `/store`, «حكاية الصناعة» → `/about`, trust line, search box, a carousel of product photos | `hero.tsx` + `hero-carousel.tsx` | the best-sellers that have a photo (up to 5) |
-| 2–4 | One section per audience segment — gift buyers, luxury on a budget, long day out — each headed by its key message | `audience-section.tsx` (`AudienceSections`) | static — `constants/landing.ts`; the budget section's «عطور تبدأ من» is the live lowest price |
+| 2–4 | One section per audience segment — gift buyers, luxury on a budget, long day out — each headed by its key message; from `lg` each is `sticky top-4` so they stack as you scroll (wrapper `<div>` ends the stack) | `audience-section.tsx` (`AudienceSections`) | static — `constants/landing.ts`; the budget section's «عطور تبدأ من» is the live lowest price |
 | 3 | «أي عطر يشبهك؟» — one card per category | `category-segments.tsx` | **database** — `listSegmentCategories()` |
 | 4 | «الأكثر طلبًا» (or «أحدث العطور») — six product cards | `best-sellers.tsx` | **database** — `listBestSellers(6)` |
 | 5 | «إزاي عطرك بيوصلك» — three steps | `how-it-works.tsx` | static |
@@ -378,9 +381,11 @@ viewport rule beside it. Reveals fire **once**.
   half turns the sheen off and the lift into a no-op under
   `prefers-reduced-motion: reduce`.
 - **No JavaScript.** Every animated element carries `data-motion`. A
-  `<noscript><style>` in `page.tsx` resets them to `opacity: 1;
-  transform: none; filter: none`, so nothing stays at its hidden starting
-  state.
+  `<noscript><style>` — `<NoJsMotionReset />` (`components/motion/
+  no-js-motion-reset.tsx`), rendered by every page that animates (`/`,
+  `/about`) — resets them to `opacity: 1; transform: none; filter: none`, so
+  nothing stays at its hidden starting state. It lived inline in `page.tsx`
+  until `/about` became the second animated page.
 
 ### Magic UI / React Bits, and why they are not installed
 
@@ -414,32 +419,62 @@ alignment follows the page direction rather than a hard-coded side.
 ## Tone
 
 Warm, simple, Egyptian-friendly Arabic — short sentences, one idea per
-block, in the same voice as the research's key messages. `/about` and
-`/contact` are still in the more formal register they were written in; they
-were out of scope for this round.
+block, in the same voice as the research's key messages. `/about` now
+speaks in that voice too — it is built from the founder's own text.
+`/contact` is still in the more formal register it was written in.
 
 ---
 
-## `/about` — the manufacturing story, in full
+## `/about` — the brand story, in the founder's words
 
-`docs/misk_business_analysis.md` is an internal planning document — English,
-written to design the catalog's data model, not to be read by a shopper.
-`/about` is what that document's substance looks like translated into
-Arabic brand copy: §2 (in-house manufacturing) becomes the intro and an
-expanded three-point `Craft` (the same three claims `/` teases, written with
-more depth here); §4 (the two product formats) becomes a two-card "خطّان
-لكل ذوق" comparison — alcohol-based (30/50/100ml) side by side with raw oil /
-«دهن» (5/8/12g, sold by weight); the three categories get a short paragraph
-and a link to each
-`/store?category=` filter, deliberately **not** a second copy of `/`'s own
-category cards (the same picker appearing identically on two pages a
-shopper might visit back to back would just be repetition, not
-information). Nothing on this page is copied verbatim from the
-business-analysis document — it names *what to say*, not *how to say it to
-a customer*.
+Rebuilt 2026-10-06 around the owner's own text (`misk_business_analysis.md`
+§1.1) and in the landing page's design, so `/about` reads as the same site
+as `/` rather than an older sibling.
 
-A plain (non-`async`) Server Component — nothing on `/about` reads the
-database, so there is nothing to fetch.
+**The text is one constant.** `BRAND_ABOUT` in `src/constants/about.ts`
+holds the founder's paragraph **verbatim**, split at its sentence breaks
+(`origin`, `craft`, `belief`, `signOff`) plus `full` — all four joined.
+`/about` lays the pieces out; the footer prints `full`. Neither component
+holds a copy of the words, so the page and the footer cannot drift apart.
+The rest of `/about`'s fixed copy (`ABOUT_HERO`, `ABOUT_STORY`,
+`ABOUT_VALUES`, `ABOUT_CTA`, `ABOUT_SEO`) lives in the same file, the way
+`constants/landing.ts` holds `/`.
+
+| # | Section | Component | Built from |
+| --- | --- | --- | --- |
+| 1 | Hero — «عطر يشبهك، بسعر يريّحك.» as the page's `<h1>`, the story's first sentence under it | `about/about-hero.tsx` | `BRAND_ABOUT.origin` + the sign-off |
+| 2 | «العطر الجيد مش لازم يكلفك ثروة.» — the story beside a gold-ringed quote panel (the sign-off, attributed to محمد يونس) | `about/about-story.tsx` | `BRAND_ABOUT.craft` / `.belief` / `.signOff` |
+| 3 | «فخامة وثبات، من غير تمن الاسم» — three value cards: handmade, chosen materials in balanced measures, quality for everyone | `about/about-values.tsx` | the founder's three claims, unpacked |
+| 4 | «عارفين إيه اللي جوه كل إزازة» — the quality claims | `landing/quality.tsx` — **reused** | `constants/landing.ts` |
+| 5 | «كحولي ولا دهن خالص؟» — alcohol vs. pure oil, live "from" prices | `landing/format-comparison.tsx` — **reused** | **database** — `getFormatPriceFloors()` |
+| 6 | Closing band → `/store`, plus an outline «تواصل معنا» → `/contact` | `about/about-cta.tsx` | `ABOUT_CTA` |
+
+**Same design, on purpose.** The story section is the audience sections'
+two-column layout (text beside a `brand-sheen` panel with two hairline gold
+rings, stacking and centring below `lg`); the values sit on the same tinted
+`bg-secondary/40` band `/` alternates to; headings go through the landing
+page's `SectionHeading`; the closing band is `FinalCta`'s band with a second
+button. The page runs under `MotionProvider` with the same `Reveal` /
+`Stagger` entrances (the hero staggers in on mount, like `/`'s), plus
+`<NoJsMotionReset />`.
+
+**Reused, not rewritten.** The old `/about` had its own `Craft` and `Lines`
+sections — a second, more formal copy of the claims `Quality` and
+`FormatComparison` already make on `/`. Two wordings of one fact is one
+wording too many, so `/about` now renders those two components directly.
+`FormatComparison` needs the price floors, which makes `/about` **`async`**
+for the first time: one read, straight to `catalog.service` (the
+storefront's documented read exception).
+
+**What was dropped.** The old page's category chips hard-coded the
+`youth` / `women` / `men` slugs — the same hard-coded list `/` replaced with
+DB-driven cards ("Categories are data now"), and already out of date against
+the live categories. The header's «المتجر» dropdown and the footer both list
+the real categories, so `/about` no longer repeats them.
+
+The sections live in `components/marketing/about/` (barrel `index.ts`),
+beside `landing/` — not private to `app/about/page.tsx` any more, now that
+the page is six sections and the same shape as `/`.
 
 ---
 
@@ -475,16 +510,24 @@ the day `/about` and `/contact` needed the same footer `/` had. It is
 read the header's «المتجر» dropdown uses, instead of a hard-coded
 Youth / Women / Men list.
 
+Under the brand mark the footer prints the founder's «عن مِسك» paragraph
+(`BRAND_ABOUT.full`, `constants/about.ts` — the same sentences `/about` is
+built from), and its bottom row carries the three legal pages
+(`LEGAL_LINKS`, `constants/legal.ts`; see [`legal-pages.md`](./legal-pages.md)).
+
 `components/marketing/landing/` came with the rebuild. The old page kept
 `Hero`, `CategoryStrip`, `Latest` and `Craft` as private functions in
 `page.tsx`, on the reasoning that nothing else rendered them. Nine sections
 plus JSON-LD is past the point where one file reads well, so each section
 got its own file — they are still rendered only by `/`, which is why they
-sit in a `landing/` folder rather than loose in `marketing/`. `/about`'s own
-sections stay private to `app/about/page.tsx`.
+sit in a `landing/` folder rather than loose in `marketing/`. `/about`'s
+sections followed in their own `about/` folder when it was rebuilt in the
+same design, and `legal/` holds the one layout the three legal pages share.
 
 **Why not `StoreFooter`.** `components/store/store-chrome.tsx`'s
-`StoreFooter` is deliberately minimal — brand mark and a copyright line —
+`StoreFooter` is deliberately minimal — brand mark, the three policy links
+(added with the legal pages — `/checkout` is where a shopper checks the
+refund rules) and a copyright line —
 because `/store`/`/cart`/`/checkout`/`/account/*` don't need a footer nav; a
 shopper mid-task already has the header. A marketing page is often the
 *first* page someone lands on, so its footer is where the category links,
@@ -520,9 +563,12 @@ second nav component would only be indirection for two `<li>`s.
 | `src/app/globals.css` | `.shine` / `.lift` + the `shine` keyframes — the CSS half of the motion pattern |
 | `src/constants/landing.ts` | Every fixed string on `/` (incl. `AUDIENCES` — points, panel captions), `LANDING_SEO`, `SEGMENT_ICON_KEYS` + the icon/image predicates |
 | `src/lib/site-url.ts` | `getSiteOrigin()` — absolute origin for the JSON-LD |
-| `src/app/about/page.tsx` | `/about` — a plain Server Component, no data fetching of its own |
+| `src/app/about/page.tsx` | `/about` — `async`; one read (`getFormatPriceFloors`), section order, `MotionProvider` |
+| `src/components/marketing/about/*.tsx` | `/about`'s own sections — hero, story, values, closing band — behind `index.ts` |
+| `src/constants/about.ts` | `BRAND_ABOUT` (the founder's text, verbatim — also the footer's) + every fixed string on `/about` |
+| `src/components/motion/no-js-motion-reset.tsx` | `NoJsMotionReset` — the `<noscript>` rule every animated page renders |
 | `src/app/contact/page.tsx` | `/contact` — a plain Server Component, no data fetching of its own |
-| `src/components/marketing/site-footer.tsx` | `SiteFooter` — async now; category links from `listCatalogCategories()` |
+| `src/components/marketing/site-footer.tsx` | `SiteFooter` — async; category links from `listCatalogCategories()`, the founder's paragraph, the legal links |
 | `src/components/store/store-chrome.tsx` | `StoreHeader` — reused here, not reimplemented |
 | `src/components/store/store-nav.tsx` | `StoreNavMenu` — has the «عن مِسك» dropdown |
 | `src/components/store/store-product-card.tsx` | `StoreProductCard` — reused for the best-seller row |
