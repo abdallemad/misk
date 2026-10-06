@@ -251,7 +251,7 @@ import { PageContainer, PageHeader, SectionCard } from "@/components/admin/share
 | `PageHeader` | Title + one line of context + the page's actions |
 | `SectionCard` | One titled block — form section, stats panel, table wrapper |
 | `StatTile` | One number on the overview |
-| `AdminPagination` | Prev / next paging for a list page — Server Component, `<Link>`-based, carries the active filters through, hidden on a single page. The storefront's `/store` uses a generic twin, `components/shared/pagination.tsx` (`<Pagination>`); consolidating the two is a pending cleanup |
+| `AdminPagination` | Prev / next paging for a list page — Server Component, `<Link>`-based, carries the active filters through, hidden on a single page. The storefront's `/store` uses `components/shared/pagination.tsx` (`<Pagination>`), which has since grown numbered pages; consolidating the two (and so giving the admin lists page numbers too) is a pending cleanup |
 | `ComingSoon` | Scaffold body for a section not built yet |
 
 The barrel also re-exports `StatusBadge`, `OrderStatusBadge`, `StockBadge`

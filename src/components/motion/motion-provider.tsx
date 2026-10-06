@@ -16,7 +16,7 @@ import type { ReactNode } from "react"
  * are dropped and only the opacity fades remain, so nothing moves across
  * the screen for someone who asked it not to.
  *
- * Wraps only the pages that animate (today, `/`), so every other page's
+ * Wraps only the pages that animate (`/` and `/about`), so every other page's
  * bundle stays motion-free.
  */
 export function MotionProvider({ children }: { children: ReactNode }) {

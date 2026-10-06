@@ -85,14 +85,18 @@ Contains all application routes using the Next.js App Router.
 app/
 │
 ├── about/                  #   /about — built — landing-page.md. The
-│                            #   manufacturing story in full. A plain folder,
+│                            #   founder's brand story (constants/about.ts),
+│                            #   in the landing page's design. A plain folder,
 │                            #   not `(marketing)/about` — the sketched group
 │                            #   never got built (see the root page.tsx below)
 │
 ├── contact/                #   /contact — built — landing-page.md. WhatsApp
 │                            #   / Instagram / Facebook / email / phone, one
-│                            #   card each — all placeholder values
-│                            #   (constants/contact.ts)
+│                            #   card each (constants/contact.ts)
+│
+├── terms/                  #   /terms, /privacy, /refunds — built —
+├── privacy/                #   legal-pages.md. Each page.tsx is a few lines:
+├── refunds/                #   <LegalPage doc={…} /> over constants/legal.ts
 │
 ├── store/                  #   /store  — built — the public catalogue.
 │   ├── layout.tsx           #   storefront header + footer (StoreHeader/Footer)
@@ -204,7 +208,8 @@ components/
 ├── marketing/
 │
 ├── motion/        # built — the storefront's motion system: MotionProvider
-│                  #   (LazyMotion, scoped to `/`), Reveal / Stagger /
+│                  #   (LazyMotion, scoped to `/` and `/about`),
+│                  #   NoJsMotionReset, Reveal / Stagger /
 │                  #   StaggerItem, the four variants — landing-page.md,
 │                  #   "Motion"
 │
@@ -351,9 +356,23 @@ Built — but not the way this section originally sketched it.
 ```text
 marketing/
 │
-├── site-footer.tsx          # built — SiteFooter, shared by /, /about and
-│                            #   /contact; async — category links come
-│                            #   from listCatalogCategories() — landing-page.md
+├── site-footer.tsx          # built — SiteFooter, shared by /, /about,
+│                            #   /contact and the legal pages; async —
+│                            #   category links from listCatalogCategories(),
+│                            #   the founder's «عن مِسك» paragraph, the legal
+│                            #   links — landing-page.md
+│
+├── about/                   # built — /about's own sections (it also reuses
+│   ├── index.ts             #   landing/quality + landing/format-comparison):
+│   ├── about-hero.tsx       #   the <h1> — the founder's sign-off
+│   ├── about-story.tsx      #   the story beside a quote panel
+│   ├── about-values.tsx     #   three value cards
+│   └── about-cta.tsx        #   closing band → /store + /contact
+│
+├── legal/                   # built — legal-pages.md
+│   ├── index.ts
+│   └── legal-page.tsx       #   LegalPage — the one layout /terms, /privacy,
+│                            #   /refunds share; copy is data in constants/legal.ts
 │
 └── landing/                 # built — the sections of `/`, one per file:
     ├── index.ts             #   the barrel page.tsx imports
@@ -378,9 +397,11 @@ marketing/
 > The audience-research rebuild took `/` to nine sections plus JSON-LD, past
 > the point where one file reads well, so they moved to `landing/` — still
 > rendered only by `/`, hence their own folder rather than loose files here.
-> Their copy lives in `constants/landing.ts`. `/about`'s sections stay
-> private to `app/about/page.tsx`. `legal-sections.tsx` has no built
-> counterpart; there is no terms/privacy page yet.
+> Their copy lives in `constants/landing.ts`. `/about` followed the same
+> way when it was rebuilt in the landing page's design (`about/`, copy in
+> `constants/about.ts`). `legal-sections.tsx` became `legal/legal-page.tsx`
+> — one layout rather than sections, since the three legal pages differ only
+> in their words (`constants/legal.ts`).
 
 ---
 
@@ -891,6 +912,12 @@ constants/
 ├── landing.ts         # built — every fixed string on `/` (hero, the three
 │                      #   audience segments + key messages, section copy,
 │                      #   LANDING_SEO), SEGMENT_ICON_KEYS — landing-page.md
+├── about.ts           # built — BRAND_ABOUT, the founder's text verbatim
+│                      #   (the footer prints it, /about is built from it)
+│                      #   + every fixed string on /about — landing-page.md
+├── legal.ts           # built — TERMS / PRIVACY / REFUNDS as data, the
+│                      #   policy constants (RETURN_WINDOW_DAYS, …),
+│                      #   LEGAL_LINKS — legal-pages.md
 └── design-system.ts   # tones, order status, stock, category + type accents
 ```
 

@@ -14,7 +14,7 @@ import {
 } from "@/components/marketing/landing"
 import type { HeroSlide } from "@/components/marketing/landing/hero-carousel"
 import { SiteFooter } from "@/components/marketing/site-footer"
-import { MotionProvider } from "@/components/motion"
+import { MotionProvider, NoJsMotionReset } from "@/components/motion"
 import { StoreHeader } from "@/components/store"
 import {
   BEST_SELLERS_COUNT,
@@ -37,14 +37,6 @@ export const metadata: Metadata = {
   title: { absolute: LANDING_SEO.title },
   description: LANDING_SEO.description,
 }
-
-/**
- * Without JavaScript, every `motion` element would stay at its hidden
- * starting state (opacity 0, shifted). This rule, only parsed when scripting
- * is off, puts them all back — the content is in the HTML either way.
- */
-const NO_JS_MOTION_RESET =
-  "[data-motion]{opacity:1!important;transform:none!important;filter:none!important}"
 
 /** The cheapest option across both product lines, or `null` if nothing is on sale. */
 function lowestPrice(floors: Record<string, number | null>): number | null {
@@ -119,9 +111,7 @@ export default async function Home() {
     <>
       <StoreHeader />
       <main className="flex-1">
-        <noscript>
-          <style>{NO_JS_MOTION_RESET}</style>
-        </noscript>
+        <NoJsMotionReset />
         <MotionProvider>
           <Hero slides={pickHeroSlides(bestSellers.products)} />
           <AudienceSections priceFrom={lowestPrice(priceFloors)} />

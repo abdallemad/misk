@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/shared/theme-toggle"
 import { MobileNav } from "@/components/store/mobile-nav"
 import { StoreNavMenu } from "@/components/store/store-nav"
 import { buttonVariants } from "@/components/ui/button"
+import { LEGAL_LINKS } from "@/constants/legal"
 import { ROUTES } from "@/constants/routes"
 import { cn } from "@/lib/utils"
 import { isAdmin } from "@/services/auth.service"
@@ -112,11 +113,31 @@ export async function StoreHeader() {
   )
 }
 
+/**
+ * The store-side footer — brand mark, the three policy links, copyright.
+ * Still minimal on purpose (a shopper mid-task has the header), but the
+ * policies belong here more than anywhere: `/cart` and `/checkout` are
+ * where someone checks the refund rules before ordering.
+ */
 export function StoreFooter() {
   return (
     <footer className="mx-auto w-full max-w-page px-4 py-12 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-6">
         <BrandLockup tagline="دار عطور" />
+        <nav
+          aria-label="السياسات"
+          className="flex flex-wrap gap-x-6 gap-y-2 text-xs"
+        >
+          {LEGAL_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
         <p className="text-xs text-muted-foreground">
           © <span data-numeric>{new Date().getFullYear()}</span> مِسك. كل الحقوق
           محفوظة.

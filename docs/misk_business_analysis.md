@@ -1,14 +1,39 @@
 # Business Analysis: Misk Perfume Brand
 
 > This is an internal planning document — English, written to design the
-> catalog's data model. The customer-facing translation of §2, §4 and §6
-> below lives at [`landing-page.md`](./landing-page.md)'s `/about` page; that
-> page does not quote this one, it restates the same substance as brand copy.
+> catalog's data model. §2, §4 and §6 below are restated as Arabic brand copy
+> on `/` and `/about` (see [`landing-page.md`](./landing-page.md)). §1.1 is the
+> exception: it is the founder's own Arabic text, and the site quotes it
+> **verbatim** — from `src/constants/about.ts`, never retyped.
 
 ## 1. Executive Summary
 Misk is a self-manufactured perfume brand. The owner personally produces every fragrance in-house, starting from raw materials (fragrance oils and pharmaceutical-grade ethanol/medical alcohol) and blending them into finished perfumes. The brand sells across multiple product lines, packaging formats, and price points, giving customers flexibility in scent type, bottle style, and bottle size.
 
 This document analyzes the business model, product structure, and data requirements needed to build a website/catalog for Misk.
+
+### 1.1 About Misk — the brand story (founder's text)
+
+The owner's own description of the brand, provided 2026-10-06. It is the
+brand's canonical "about" text: customer-facing, Egyptian Arabic, and
+reproduced word for word wherever the site tells the brand's story.
+
+> في مسك، بدأت الحكاية مع محمد يونس بفكرة بسيطة: العطر الجيد مش لازم يكلفك ثروة. إحنا بنصنع عطورنا يدويًا بعناية، من خامات مختارة ومقادير متوازنة، عشان نوصلك لرائحة فخمة وثابتة تفضل معاك طول اليوم، من غير ما تدفع ثمن اسم براند كبير أو إعلانات ضخمة. إيماننا إن الجودة حق للجميع، ولذلك بنقدم لك عطور بتفرّق معاك في الإحساس والحضور، وبسعر مناسب يخليك تتميز كل يوم. مسك... عطر يشبهك، بسعر يريّحك.
+
+In planning terms, it fixes four things the rest of this document assumes:
+
+| Point | What the text says | Where it already shows up |
+|---|---|---|
+| Founder | Misk was started by **Mohamed Younis** (محمد يونس) | §1 — the owner who produces every fragrance |
+| Positioning | A good perfume shouldn't cost a fortune; you pay for the perfume, not a big brand name or heavy advertising | The affordable-luxury audience in the landing page research |
+| Craft | Handmade with care, from selected materials in balanced measures, for a rich scent that lasts all day | §2 (in-house manufacturing), §6 (graded oils) |
+| Promise / tagline | «مسك... عطر يشبهك، بسعر يريّحك.» — a perfume that suits you, at a price that's easy on you | `/about`'s `<h1>` and story quote |
+
+**Where it is used on the site:** the marketing footer prints the whole text
+under the brand mark on every marketing page, and `/about` is built from it
+— the tagline as the `<h1>`, the first sentence under it, the rest as the
+story section, and the three claims unpacked as the values section. Both
+read `BRAND_ABOUT` in `src/constants/about.ts`, so an edit to the story is one
+edit there (and here).
 
 ---
 

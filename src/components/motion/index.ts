@@ -4,5 +4,6 @@
  */
 
 export { MotionProvider } from "./motion-provider"
+export { NoJsMotionReset } from "./no-js-motion-reset"
 export { Reveal, Stagger, StaggerItem } from "./reveal"
 export { VARIANTS, staggerContainer, type RevealVariant } from "./variants"

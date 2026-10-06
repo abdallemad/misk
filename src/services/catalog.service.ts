@@ -111,8 +111,12 @@ export type CatalogResult = {
   pageCount: number
 }
 
-/** A grid page. 12 divides cleanly into 2 / 3 / 4 columns. */
-export const STORE_PAGE_SIZE = 12
+/**
+ * A grid page. 8 fills the 2-column grid in even rows (the 3-column one ends
+ * on a row of 2), and it was picked over 12 so a catalogue of a dozen-odd
+ * perfumes already pages instead of being one long scroll.
+ */
+export const STORE_PAGE_SIZE = 8
 
 /** One purchasable option on the product page, flattened for display. */
 export type StoreVariant = {
@@ -229,7 +233,7 @@ export async function listCatalog(
   filters: CatalogFilters = {}
 ): Promise<CatalogResult> {
   const search = filters.search?.trim() ?? ""
-  const page = Math.max(1, Math.floor(filters.page ?? 1))
+  const requestedPage = Math.max(1, Math.floor(filters.page ?? 1))
   const sort: StoreSort = filters.sort ?? DEFAULT_STORE_SORT
 
   const where: Prisma.ProductWhereInput = {
@@ -267,13 +271,18 @@ export async function listCatalog(
   })
 
   const total = cards.length
+  const pageCount = Math.max(1, Math.ceil(total / STORE_PAGE_SIZE))
+  // Clamped: a stale `?page=5` (the catalogue shrank, or a filter narrowed
+  // it) lands on the last page rather than an empty grid that claims "no
+  // matches" while the total above it says otherwise.
+  const page = Math.min(requestedPage, pageCount)
   const start = (page - 1) * STORE_PAGE_SIZE
 
   return {
     products: cards.slice(start, start + STORE_PAGE_SIZE).map((row) => row.card),
     total,
     page,
-    pageCount: Math.max(1, Math.ceil(total / STORE_PAGE_SIZE)),
+    pageCount,
   }
 }
 
